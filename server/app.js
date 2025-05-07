@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json());
 
 // routes
-app.use("/api/v1/auth",auth, authRoutes);
+app.use("/api/v1/auth", authRoutes);
 
 // middlewares
 app.use(notFoundMiddleware);
