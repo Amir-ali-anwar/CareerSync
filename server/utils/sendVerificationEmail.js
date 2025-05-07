@@ -1,14 +1,22 @@
-import sendEmail from './sendEmail'
-const sendVerificationEmail=async({email,name, verificationToken,origin})=>{
-const verifyEmail= `${origin}/user/verify-email?token=${verificationToken}&email=${email}`
-const message=`<p>Please confirm your email by clicking on the following link : 
-<a href="${verifyEmail}">Verify Email</a> </p>`
-return sendEmail({
+import nodemailer from 'nodemailer';
+import mailConfig from './mailConfig.js'; // adjust the path
+
+const sendVerificationEmail = async ({ name, email, verificationToken, origin }) => {
+  const verifyURL = `${origin}/user/verify-email?token=${verificationToken}&email=${email}`;
+
+  const transporter = nodemailer.createTransport(mailConfig);
+
+  const message = {
+    from: '"CareerSync" <no-reply@careersync.com>',
     to: email,
-    subject: 'Email Confirmation',
-    html: `<h4> Hello, ${name}</h4>
-    ${message}
-    `,
-})
-}
-module.exports = sendVerificationEmail;
+    subject: 'Email Verification',
+    html: `<h4>Hello ${name}</h4>
+      <p>Please confirm your email by clicking the following link:</p>
+      <a href="${verifyURL}">Verify Email</a>
+      <p>If you did not create this account, please ignore this email.</p>`
+  };
+
+  await transporter.sendMail(message);
+};
+
+export default sendVerificationEmail;
