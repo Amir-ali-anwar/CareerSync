@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
-import mailConfig from './mailConfig.js'; // adjust the path
+import mailConfig from './mailConfig.js';
+import nodemailerPkg from 'nodemailer';
 
 const sendVerificationEmail = async ({ name, email, verificationToken, origin }) => {
   const verifyURL = `${origin}/user/verify-email?token=${verificationToken}&email=${email}`;
@@ -15,8 +16,6 @@ const sendVerificationEmail = async ({ name, email, verificationToken, origin })
       <a href="${verifyURL}">Verify Email</a>
       <p>If you did not create this account, please ignore this email.</p>`
   };
-
-  await transporter.sendMail(message);
 };
 
 export default sendVerificationEmail;
