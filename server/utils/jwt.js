@@ -1,5 +1,4 @@
-const jwt = require('jsonwebtoken');
-
+import jwt from 'jsonwebtoken'
 const createJWT = ({ payload }) => {
   const token = jwt.sign(payload, process.env.JWT_SECRET);
   return token;
@@ -27,7 +26,7 @@ const attachCookiesToResponse = ({ res, user,refreshToken }) => {
   });
 };
 
-module.exports = {
+export {
   createJWT,
   isTokenValid,
   attachCookiesToResponse,

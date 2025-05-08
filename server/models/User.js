@@ -35,12 +35,12 @@ const UserSchema = new mongoose.Schema(
       country: {
         type: String,
         maxlength: 100,
-        default: "India",
+        default: "",
       },
       city: {
         type: String,
         maxlength: 100,
-        default: "My City",
+        default: "",
       },
     },
     role: {
