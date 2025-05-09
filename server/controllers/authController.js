@@ -111,6 +111,8 @@ const updateUser = async (req, res, next) => {
   res.status(StatusCodes.OK).json({ user: tokenUser });
 };
 const showCurrentUser = async (req, res) => {
+  console.log(req);
+  
   res.status(StatusCodes.OK).json({ user: req.user });
 };
 const logout = async (req, res) => {

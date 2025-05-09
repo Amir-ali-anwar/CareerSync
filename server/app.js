@@ -5,9 +5,9 @@ import morgan from "morgan";
 import connectDB from "./db/connect.js";
 import notFoundMiddleware from "./middlewares/not-found.js";
 import errorHandlerMiddleware from "./middlewares/error-handler.js";
-import cookieParser from 'cookie-parser'
+import cookieParser from "cookie-parser";
 import 'express-async-errors'; 
-import auth from './middlewares/auth.js'
+// import auth from './middlewares/auth.js'
 import authRoutes from "./routes/authRoutes.js";
 
 const app = express();

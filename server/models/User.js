@@ -65,6 +65,15 @@ const UserSchema = new mongoose.Schema(
         message: "Please provide a valid phone number",
       },
     },
+    company: {
+      name: { type: String, default: "" },
+      size: {
+        type: String,
+        enum: ["", "1-10", "11-50", "51-200", "201-1000", "1000+"],
+        default: "",
+      },
+      industry: { type: String, default: "" },
+    },
     verificationToken: String,
     isVerified: {
       type: Boolean,
