@@ -95,9 +95,24 @@ const login = async (req, res, next) => {
 };
 
 const updateUser = async (req, res, next) => {
-  
-};
+  const { email, name } = req.body;
+  if (!email || !name) {
+    throw new CustomError.BadRequestError('Please provide all values');
+  }
+  const user = await User.findOne({ _id: req.user.userId });
 
+  user.email = email;
+  user.name = name;
+
+  await user.save();
+
+  const tokenUser = createTokenUser(user);
+  attachCookiesToResponse({ res, user: tokenUser });
+  res.status(StatusCodes.OK).json({ user: tokenUser });
+};
+const showCurrentUser = async (req, res) => {
+  res.status(StatusCodes.OK).json({ user: req.user });
+};
 const logout = async (req, res) => {
   res.cookie('token', 'logout', {
     httpOnly: true,
@@ -106,4 +121,4 @@ const logout = async (req, res) => {
   res.status(StatusCodes.OK).json({ msg: 'user logged out!' });
 };
 
-export { register, login, updateUser,logout };
+export { register, login, updateUser,logout,showCurrentUser };
