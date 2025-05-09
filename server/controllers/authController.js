@@ -94,7 +94,9 @@ const login = async (req, res, next) => {
   res.status(StatusCodes.OK).json({tokenUser })
 };
 
-const updateUser = async (req, res, next) => {};
+const updateUser = async (req, res, next) => {
+  
+};
 
 const logout = async (req, res) => {
   res.cookie('token', 'logout', {

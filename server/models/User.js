@@ -19,6 +19,14 @@ const UserSchema = new mongoose.Schema(
         message: "Please provide a valid email",
       },
     },
+    profileImage: {
+      type: String,
+      default: function () {
+        const encodedName = encodeURIComponent(this.name || "User");
+        return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodedName}`;
+      },
+    },
+    
     password: {
       type: String,
       required: [true, "Please provide password"],
