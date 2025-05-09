@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken'
 const createJWT = ({ payload }) => {
+  if (!payload) throw new Error("JWT payload is undefined");
+
   const token = jwt.sign(payload, process.env.JWT_SECRET);
   return token;
 };
