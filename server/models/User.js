@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import validator from "validator";
-
+import bcrypt from "bcryptjs";
 const UserSchema = new mongoose.Schema(
   {
     name: {
@@ -19,11 +19,18 @@ const UserSchema = new mongoose.Schema(
         message: "Please provide a valid email",
       },
     },
+    profileImage: {
+      type: String,
+      default: function () {
+        const encodedName = encodeURIComponent(this.name || "User");
+        return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodedName}`;
+      },
+    },
+    
     password: {
       type: String,
       required: [true, "Please provide password"],
-      minlength: 10,
-      select: false,
+      minlength: 5,
     },
     lastName: {
       type: String,
@@ -58,6 +65,15 @@ const UserSchema = new mongoose.Schema(
         message: "Please provide a valid phone number",
       },
     },
+    company: {
+      name: { type: String, default: "" },
+      size: {
+        type: String,
+        enum: ["", "1-10", "11-50", "51-200", "201-1000", "1000+"],
+        default: "",
+      },
+      industry: { type: String, default: "" },
+    },
     verificationToken: String,
     isVerified: {
       type: Boolean,
@@ -71,5 +87,16 @@ const UserSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+UserSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+  const salt = await bcrypt.genSalt(process.env.SALT_ROUNDS || 10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+UserSchema.methods.comparePassword = async function (canditatePassword) {
+  const isMatch = await bcrypt.compare(canditatePassword, this.password);
+  return isMatch;
+};
 
 export default mongoose.model("User", UserSchema);
