@@ -56,7 +56,7 @@ const UserSchema = new mongoose.Schema(
       required: [true, "Please select user role"],
     },
     phone: {
-      type: String,
+      type: String, 
       required: [true, "Please provide phone number"],
       validate: {
         validator: function (v) {
