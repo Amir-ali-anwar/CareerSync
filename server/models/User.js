@@ -78,6 +78,7 @@ const UserSchema = new mongoose.Schema(
     verified: {
       type: Date,
     },
+    verificationTokenExpires:Date,
     createdAt: {
       type: Date,
       default: Date.now,
