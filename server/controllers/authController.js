@@ -47,6 +47,7 @@ const register = async (req, res, next) => {
   }
 
   const verificationToken = crypto.randomBytes(40).toString("hex");
+  const verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   const userData = {
     name,
@@ -57,6 +58,7 @@ const register = async (req, res, next) => {
     role,
     phone,
     verificationToken,
+    verificationTokenExpires,
     ...(role === "employer" && { companyName, companySize, industry }),
   };
 
@@ -178,11 +180,59 @@ const updateUserPassword = async (req, res) => {
 const showCurrentUser = async (req, res) => {
   res.status(StatusCodes.OK).json({ user: req.user });
 };
+
+
+const resendVerificationToken = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    throw new BadRequestError("Please provide email");
+  }
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new UnAuthenticatedError("No account found with this email");
+  }
+
+  if (user.isVerified) {
+    throw new BadRequestError("Account already verified");
+  }
+
+  const verificationToken = crypto.randomBytes(40).toString("hex");
+  const verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  user.verificationToken = verificationToken;
+  user.verificationTokenExpires = verificationTokenExpires;
+
+  await user.save({validateBeforeSave:false});
+
+  const origin = req.get("origin") || "http://localhost:3000";
+  await sendVerificationEmail({
+    name: user.name,
+    email: user.email,
+    verificationToken,
+    origin,
+  });
+
+  res.status(StatusCodes.OK).json({
+    msg: "Verification email resent. Please check your inbox.",
+  });
+
+};
+
+
+
+
+
+
+
 const verifyEmail = async (req, res) => {
   const { verificationToken, email } = req.body;
   const user = await User.findOne({ email });
   if (!user) {
     throw new UnAuthenticatedError("Please provide valid email address");
+  }
+  if (user.verificationTokenExpires < new Date()) {
+    throw new UnAuthenticatedError("Verification token expired. Please request a new one.");
   }
   if (verificationToken !== user.verificationToken) {
     throw new UnAuthenticatedError("Verification Failed");
@@ -190,6 +240,7 @@ const verifyEmail = async (req, res) => {
   (user.isVerified = true),
     (user.verified = Date.now()),
     (user.verificationToken = "");
+    user.verificationTokenExpires = null;
   await user.save();
   res.status(StatusCodes.OK).json({ msg: "Email Verified" });
 };
@@ -226,4 +277,5 @@ export {
   showCurrentUser,
   verifyEmail,
   updateUserPassword,
+  resendVerificationToken
 };
