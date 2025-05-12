@@ -5,21 +5,21 @@ import crypto from "crypto";
 import User from "../models/User.js";
 import Token from "../models/Token.js";
 const register = async (req, res, next) => {
-  const { name, email, password, lastName, location, city, role, phone, companyName,
+  const {
+    name,
+    email,
+    password,
+    lastName,
+    location,
+    role,
+    phone,
+    companyName,
     companySize,
-    industry, } =
-    req.body;
+    industry,
+  } = req.body;
+  
 
-  if (
-    !name ||
-    !email ||
-    !password ||
-    !lastName ||
-    !location ||
-    !city ||
-    !role ||
-    !phone || !role
-  ) {
+  if (!name || !email || !password || !lastName || !location?.country || !location?.city || !role || !phone) {
     throw new BadRequestError("Please provide all the values");
   }
   if (role === "employer") {
@@ -41,13 +41,11 @@ const register = async (req, res, next) => {
     email,
     password,
     lastName,
-    location: {
-      country: location,
-      city,
-    },
+    location, // already in { country, city } format
     role,
     phone,
     verificationToken,
+    ...(role === "employer" && { companyName, companySize, industry }),
   };
 
   if (role === "employer") {
