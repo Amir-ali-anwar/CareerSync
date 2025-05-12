@@ -10,6 +10,6 @@ router.route("/logout").get(logout);
 router.route("/verify-Email").get(verifyEmail);
 router.route("/updateUser").patch(authenticateUser, updateUser);
 router.route("/showCurrentUser").get(authenticateUser,showCurrentUser);
-router.route("/showCurrentUser").patch(authenticateUser,updateUserPassword);
+router.route("/updateUserPassword").patch(authenticateUser,updateUserPassword);
 
 export default router;

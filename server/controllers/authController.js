@@ -159,7 +159,9 @@ const updateUserPassword = async (req, res) => {
   if (!oldPassword || !newPassword) {
     throw new UnAuthenticatedError("Please provide both values");
   }
-
+  if (oldPassword === newPassword) {
+    throw new BadRequestError("New password must be different from the old password");
+  }
   const user = await User.findOne({ _id: req.user.userId });
   const isPasswordCorrect = await user.comparePassword(oldPassword);
 
@@ -168,7 +170,7 @@ const updateUserPassword = async (req, res) => {
   }
 
   user.password = newPassword;
-  await user.save();
+  await user.save({ validateBeforeSave: false });
 
   res.status(StatusCodes.OK).json({ msg: "Success! Password Updated." });
 };
