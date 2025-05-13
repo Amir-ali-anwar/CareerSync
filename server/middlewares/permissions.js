@@ -8,4 +8,12 @@ const authorizePermissions = (...roles) => {
     next();
   };
 };
-export default authorizePermissions;
+
+const checkPermissions = (requestUser, resourceUserId) => {
+  if (requestUser.userId === resourceUserId.toString()) return;
+  throw new UnAuthenticatedError("You can only delete your created job");
+};
+export {checkPermissions, authorizePermissions} 
+
+
+

@@ -1,9 +1,10 @@
 import { Router } from "express";
-import permissions from "../middlewares/permissions.js";
+import {authorizePermissions} from "../middlewares/permissions.js";
 const router = Router();
 
-import { createJob } from "../controllers/jobController.js";
+import { createJob,deleteJob,getAllJobs } from "../controllers/jobController.js";
 
-router.route("/").post(permissions('employer'),createJob);
-
+router.route("/").post(authorizePermissions('employer'),createJob);
+router.route("/:id").post(authorizePermissions('employer'),deleteJob);
+router.route("/all-jobs").get(authorizePermissions('employer'),getAllJobs);
 export default router;
