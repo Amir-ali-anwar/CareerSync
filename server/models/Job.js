@@ -25,7 +25,7 @@ const JobSchema = new mongoose.Schema(
     },
     jobLocation: {
       type: String,
-      default: 'my city',
+      default: '',
     },
 
     // The employer who created this job
