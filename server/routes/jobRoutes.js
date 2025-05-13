@@ -4,6 +4,6 @@ const router = Router();
 
 import { createJob } from "../controllers/jobController.js";
 
-router.route("/create-job").post(permissions, createJob);
+router.route("/").post(permissions('employer'),createJob);
 
 export default router;
