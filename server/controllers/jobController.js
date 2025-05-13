@@ -75,14 +75,22 @@ export const getAllJobs = async (req, res) => {
 
 export const getJob = async (req, res) => {
   const job = await JobModal.findById(req.params.id);
+  if (!job) throw new NotFoundError('Job not found');
+  checkPermissions(req.user, job.createdBy);
   res.status(StatusCodes.OK).json({ job });
 };
 
 
 export const updateJob = async (req, res) => {
-  const updatedJob = await JobModal.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-  });
+  // sanitize
+  delete req.body.createdBy;
+  delete req.body._id;
+  const job = await JobModal.findOneAndUpdate(
+    { _id: req.params.id, createdBy: req.user.userId },
+    req.body,
+    { new: true, runValidators: true }
+  );
+  if (!job) throw new NotFoundError("Job not found or permission denied");
 
-  res.status(StatusCodes.OK).json({ msg: 'job modified', job: updatedJob });
+  res.status(StatusCodes.OK).json({ msg: "Job updated successfully", job });
 };
