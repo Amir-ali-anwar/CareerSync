@@ -8,7 +8,7 @@ import { BadRequestError, UnAuthenticatedError } from "../errors/index.js";
 import crypto from "crypto";
 import User from "../models/User.js";
 import Token from "../models/Token.js";
-const register = async (req, res, next) => {
+const register = async (req, res) => {
   const {
     name,
     email,
@@ -218,13 +218,6 @@ const resendVerificationToken = async (req, res) => {
   });
 
 };
-
-
-
-
-
-
-
 const verifyEmail = async (req, res) => {
   const { verificationToken, email } = req.body;
   const user = await User.findOne({ email });
@@ -246,12 +239,6 @@ const verifyEmail = async (req, res) => {
 };
 
 const logout = async (req, res) => {
-  console.log({
-    method: req.method,
-    url: req.url,
-    headers: req.headers,
-    ip: req.ip,
-  });
   res.cookie("accessToken", "logout", {
     httpOnly: true,
     expires: new Date(Date.now() + 1000),
