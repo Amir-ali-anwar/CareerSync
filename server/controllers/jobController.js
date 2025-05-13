@@ -71,3 +71,18 @@ export const getAllJobs = async (req, res) => {
     .status(StatusCodes.OK)
     .json({ totalJobs, numOfPages, currentPage: page, jobs });
 };
+
+
+export const getJob = async (req, res) => {
+  const job = await JobModal.findById(req.params.id);
+  res.status(StatusCodes.OK).json({ job });
+};
+
+
+export const updateJob = async (req, res) => {
+  const updatedJob = await JobModal.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+  });
+
+  res.status(StatusCodes.OK).json({ msg: 'job modified', job: updatedJob });
+};
