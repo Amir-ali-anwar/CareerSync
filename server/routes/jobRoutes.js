@@ -3,7 +3,7 @@ import {authorizePermissions} from "../middlewares/permissions.js";
 import uploadCV from '../middlewares/fileuploader.js'
 const router = Router();
 
-import { createJob, deleteJob, getAllJobs, getJob, updateJob,applyForJob } from "../controllers/jobController.js";
+import { createJob, deleteJob, getAllJobs, getJob, updateJob,applyForJob,myApplications } from "../controllers/jobController.js";
 
 router
   .route("/")
@@ -12,6 +12,7 @@ router
 
 router.route('/applyForJob/:id').post(authorizePermissions('talent'), uploadCV, applyForJob);
 
+router.route('/myApplications').get(authorizePermissions('talent'), myApplications);
 router
   .route("/:id")
   .get(authorizePermissions('employer'), getJob)

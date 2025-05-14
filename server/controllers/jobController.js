@@ -4,8 +4,8 @@ import { StatusCodes } from "http-status-codes";
 import {BadRequestError} from "../errors/index.js";
 import {checkPermissions} from "../middlewares/permissions.js";
 export const createJob = async (req, res) => {
-  const { title, company, jobType, location, description } = req.body;
-  if (!title || !company || !jobType || !location || !description) {
+  const { title, company, jobType, jobLocation, description } = req.body;
+  if (!title || !company || !jobType || !jobLocation || !description) {
     throw new BadRequestError("Please provide all required job fields");
   }
   req.body.createdBy = req.user.userId;
@@ -154,3 +154,29 @@ export const applyForJob = async (req, res) => {
       application: newApplication,
     });
 };
+
+
+export const myApplications = async (req, res) => {
+  const userId = req.user.userId;
+  const appliedJobs = await JobApplicationModal.find({ user: userId }).populate(
+    "job",
+    "position company jobLocation"
+  );
+  res.status(StatusCodes.OK).json({
+    success: true,
+    applications: appliedJobs.map((app) => ({
+      applicationId: app._id,
+      status: app.status,
+      appliedAt: app.appliedAt,
+      job: {
+        id: app.job?._id,
+        title: app.job?.position || "",
+        company: app.job?.company || "",
+        location: app.job?.jobLocation || "Not specified", // Show 'Not specified' if empty
+      },
+    })),
+  });
+};
+
+
+
