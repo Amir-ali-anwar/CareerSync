@@ -26,16 +26,17 @@ export const deleteJob = async (req, res) => {
 };
 
 export const getAllJobs = async (req, res) => {
-  const { search, jobStatus, jobType, sort } = req.query;
+  const { search, jobStatus, jobType, sort,title } = req.query;
 
   const queryObject = {
-    createdBy: req.user.userId,
+    createdBy: req.user.userId, 
   };
 
   if (search) {
     queryObject.$or = [
       { position: { $regex: search, $options: 'i' } },
       { company: { $regex: search, $options: 'i' } },
+      { title: { $regex: search, $options: 'i' } },
     ];
   }
 
@@ -65,7 +66,8 @@ export const getAllJobs = async (req, res) => {
     .sort(sortKey)
     .skip(skip)
     .limit(limit);
-
+  console.log({jobs});
+  
   const totalJobs = await JobModal.countDocuments(queryObject);
   const numOfPages = Math.ceil(totalJobs / limit);
   res
@@ -162,9 +164,11 @@ export const myApplications = async (req, res) => {
     "job",
     "position company jobLocation"
   );
+  console.log(appliedJobs);
   res.status(StatusCodes.OK).json({
     success: true,
     applications: appliedJobs.map((app) => ({
+      
       applicationId: app._id,
       status: app.status,
       appliedAt: app.appliedAt,
