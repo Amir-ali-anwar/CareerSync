@@ -1,10 +1,11 @@
 import JobModal from "../models/JobsModal.js";
+import JobApplicationModal from '../models/JobApplicationModal.js'
 import { StatusCodes } from "http-status-codes";
 import {BadRequestError} from "../errors/index.js";
 import {checkPermissions} from "../middlewares/permissions.js";
 export const createJob = async (req, res) => {
-  const { title, company, jobType, location, description } = req.body;
-  if (!title || !company || !jobType || !location || !description) {
+  const { title, company, jobType, jobLocation, description } = req.body;
+  if (!title || !company || !jobType || !jobLocation || !description) {
     throw new BadRequestError("Please provide all required job fields");
   }
   req.body.createdBy = req.user.userId;
@@ -94,3 +95,88 @@ export const updateJob = async (req, res) => {
 
   res.status(StatusCodes.OK).json({ msg: "Job updated successfully", job });
 };
+
+
+export const applyForJob = async (req, res) => {
+  const  {id}  = req.params;
+
+  const {
+    coverLetter,
+    portfolio,
+    linkedInProfile,
+    skills,
+    experienceLevel,
+    availability,
+    locationPreferences,
+    references,
+  } = req.body;
+  
+  if (!req?.file) {
+    throw new BadRequestError("Please attach your cv");
+  }
+
+  const job = await JobModal.findById(id);
+  console.log({job});
+  
+  if (!job) {
+    throw new BadRequestError("Please provide all required job fields");
+  }
+
+  const existingApplication = await JobApplicationModal.findOne({
+    talent: req.user.userId,
+    job: id,
+  });
+  if (existingApplication) {
+    throw new BadRequestError("You have already applied for this job");
+  }
+  const cvPath = `/uploads/cvs/${req?.file.filename}`; // Example path
+  const portfolioPath = portfolio
+    ? `/uploads/portfolio/${portfolio.filename}`
+    : null;
+
+  const newApplication = await JobApplicationModal.create({
+    job: id,
+    talent: req.user.userId,
+    coverLetter: coverLetter || "",
+    cv: cvPath || '',
+    portfolio: portfolioPath,
+    linkedInProfile: linkedInProfile || "",
+    skills: skills || [],
+    experienceLevel: experienceLevel || "beginner",
+    availability: availability || "",
+    locationPreferences: locationPreferences || "",
+    references: references || [],
+  });
+  res
+    .status(StatusCodes.CREATED)
+    .json({
+      msg: "Successfully applied for the job",
+      application: newApplication,
+    });
+};
+
+
+export const myApplications = async (req, res) => {
+  const userId = req.user.userId;
+  const appliedJobs = await JobApplicationModal.find({ user: userId }).populate(
+    "job",
+    "position company jobLocation"
+  );
+  res.status(StatusCodes.OK).json({
+    success: true,
+    applications: appliedJobs.map((app) => ({
+      applicationId: app._id,
+      status: app.status,
+      appliedAt: app.appliedAt,
+      job: {
+        id: app.job?._id,
+        title: app.job?.position || "",
+        company: app.job?.company || "",
+        location: app.job?.jobLocation || "Not specified", // Show 'Not specified' if empty
+      },
+    })),
+  });
+};
+
+
+
