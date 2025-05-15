@@ -166,11 +166,10 @@ export const myApplications = async (req, res) => {
     "job",
     "position company jobLocation"
   );
-  console.log(appliedJobs);
   res.status(StatusCodes.OK).json({
     success: true,
+    appliedJobs:appliedJobs?.length,
     applications: appliedJobs.map((app) => ({
-      
       applicationId: app._id,
       status: app.status,
       appliedAt: app.appliedAt,
