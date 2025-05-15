@@ -26,16 +26,17 @@ export const deleteJob = async (req, res) => {
 };
 
 export const getAllJobs = async (req, res) => {
-  const { search, jobStatus, jobType, sort } = req.query;
+  const { search, jobStatus, jobType, sort,title } = req.query;
 
   const queryObject = {
-    createdBy: req.user.userId,
+    createdBy: req.user.userId, 
   };
 
   if (search) {
     queryObject.$or = [
       { position: { $regex: search, $options: 'i' } },
       { company: { $regex: search, $options: 'i' } },
+      { title: { $regex: search, $options: 'i' } },
     ];
   }
 
@@ -65,7 +66,8 @@ export const getAllJobs = async (req, res) => {
     .sort(sortKey)
     .skip(skip)
     .limit(limit);
-
+  console.log({jobs});
+  
   const totalJobs = await JobModal.countDocuments(queryObject);
   const numOfPages = Math.ceil(totalJobs / limit);
   res
@@ -129,6 +131,7 @@ export const applyForJob = async (req, res) => {
   if (existingApplication) {
     throw new BadRequestError("You have already applied for this job");
   }
+
   const cvPath = `/uploads/cvs/${req?.file.filename}`; // Example path
   const portfolioPath = portfolio
     ? `/uploads/portfolio/${portfolio.filename}`
@@ -136,6 +139,7 @@ export const applyForJob = async (req, res) => {
 
   const newApplication = await JobApplicationModal.create({
     job: id,
+    Jobtitle:job?.title,
     talent: req.user.userId,
     coverLetter: coverLetter || "",
     cv: cvPath || '',
@@ -164,6 +168,7 @@ export const myApplications = async (req, res) => {
   );
   res.status(StatusCodes.OK).json({
     success: true,
+    appliedJobs:appliedJobs?.length,
     applications: appliedJobs.map((app) => ({
       applicationId: app._id,
       status: app.status,
