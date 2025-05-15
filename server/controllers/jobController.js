@@ -131,6 +131,8 @@ export const applyForJob = async (req, res) => {
   if (existingApplication) {
     throw new BadRequestError("You have already applied for this job");
   }
+  console.log({existingApplication});
+  
   const cvPath = `/uploads/cvs/${req?.file.filename}`; // Example path
   const portfolioPath = portfolio
     ? `/uploads/portfolio/${portfolio.filename}`
@@ -138,6 +140,7 @@ export const applyForJob = async (req, res) => {
 
   const newApplication = await JobApplicationModal.create({
     job: id,
+    Jobtitle:job?.title,
     talent: req.user.userId,
     coverLetter: coverLetter || "",
     cv: cvPath || '',
