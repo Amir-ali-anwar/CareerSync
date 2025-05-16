@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import validator from "validator";
-import JobApplicationModal from "./JobApplicationModal.js";
+// import JobApplicationModal from "./JobApplicationModal.js";
 import JobsModal from "./JobsModal.js";
 import bcrypt from "bcryptjs";
 const UserSchema = new mongoose.Schema(
