@@ -1,7 +1,7 @@
 import JobModal from "../models/JobsModal.js";
 import JobApplicationModal from "../models/JobApplicationModal.js";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError } from "../errors/index.js";
+import { BadRequestError,NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
 
 export const getJobApplications = async (req, res) => {
@@ -11,9 +11,9 @@ export const getJobApplications = async (req, res) => {
     .populate({
       path: "job",
       populate: {
-        path: "createdBy", // populate the job creator (employer)
+        path: "createdBy", 
         model: "User",
-        select: "name email role", // optional: only return needed fields
+        select: "name email role",
       },
     });
   if (!jobApplicants || jobApplicants.length === 0) {
@@ -25,11 +25,17 @@ const job = jobApplicants[0].job;
     return res.status(404).json({ error: "Job or creator info not found." });
   }
 
-  // ✅ Use your custom permission check here
   checkPermissions(req.user, job.createdBy._id);
   res.status(StatusCodes.OK).json({ msg: jobApplicants });
 };
 
-export const applicationStatus = async (req, res) => {
+export const updateApplicationStatus = async (req, res) => {
   const { jobId, applicantId } = req.params;
+  const { status } = req.body;
+  if (!["pending", "shortlisted", "rejected", "hired"].includes(status)) {
+    throw new BadRequestError("Invalid status");
+  }
+  const job = JobApplicationModal.findById({ job: jobId });
+  console.log({ job });
+  if (!job) throw new NotFoundError("Job not found");
 };
