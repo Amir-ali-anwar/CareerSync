@@ -118,8 +118,6 @@ export const applyForJob = async (req, res) => {
   }
 
   const job = await JobModal.findById(id);
-  console.log({job});
-  
   if (!job) {
     throw new BadRequestError("Please provide all required job fields");
   }
@@ -150,6 +148,19 @@ export const applyForJob = async (req, res) => {
     availability: availability || "",
     locationPreferences: locationPreferences || "",
     references: references || [],
+   
+  });
+
+  await JobModal.findByIdAndUpdate(id, {
+    $push: {
+      applicants: {
+        talent: req.user.userId,
+        job:id,
+        resume: cvPath || "",
+        status: "pending",
+        appliedAt: new Date(),
+      },
+    },
   });
   res
     .status(StatusCodes.CREATED)

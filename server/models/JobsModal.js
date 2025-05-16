@@ -40,13 +40,15 @@ const JobSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
-    // Track talent who applied
     applicants: [
       {
         talent: {
           type: mongoose.Types.ObjectId,
           ref: "User",
+        },
+        job: {
+          type: mongoose.Types.ObjectId,
+          ref: "Job",
         },
         status: {
           type: String,
