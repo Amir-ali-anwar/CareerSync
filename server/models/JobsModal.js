@@ -34,19 +34,20 @@ const JobSchema = new mongoose.Schema(
       },
       default: { country: "", city: "" },
     },
-    // The employer who created this job
     createdBy: {
       type: mongoose.Types.ObjectId,
       ref: "User",
       required: true,
     },
-
-    // Track talent who applied
     applicants: [
       {
         talent: {
           type: mongoose.Types.ObjectId,
           ref: "User",
+        },
+        job: {
+          type: mongoose.Types.ObjectId,
+          ref: "Job",
         },
         status: {
           type: String,
