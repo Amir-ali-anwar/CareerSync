@@ -34,7 +34,6 @@ const JobSchema = new mongoose.Schema(
       },
       default: { country: "", city: "" },
     },
-    // The employer who created this job
     createdBy: {
       type: mongoose.Types.ObjectId,
       ref: "User",
