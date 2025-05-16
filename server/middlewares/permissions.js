@@ -11,7 +11,7 @@ const authorizePermissions = (...roles) => {
 
 const checkPermissions = (requestUser, resourceUserId) => {
   if (requestUser.userId === resourceUserId.toString()) return;
-  throw new UnAuthenticatedError("You can only delete your created job");
+  throw new UnAuthenticatedError("You can only perform actions to your created job");
 };
 export {checkPermissions, authorizePermissions} 
 
