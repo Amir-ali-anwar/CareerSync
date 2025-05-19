@@ -3,6 +3,7 @@ import JobApplicationModal from "../models/JobApplicationModal.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError,NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
+const VALID_STATUSES = ['pending', 'under review', 'shortlisted', 'interview', 'rejected'];
 
 export const getJobApplications = async (req, res) => {
   const { jobId } = req.params;
@@ -32,10 +33,21 @@ const job = jobApplicants[0].job;
 export const updateApplicationStatus = async (req, res) => {
   const { jobId, applicantId } = req.params;
   const { status } = req.body;
-  if (!["pending", "shortlisted", "rejected", "hired"].includes(status)) {
-    throw new BadRequestError("Invalid status");
+   if (!VALID_STATUSES.includes(status)) {
+    throw new BadRequestError("Invalid application status");
   }
-  const job = JobApplicationModal.findById({ job: jobId });
-  console.log({ job });
+  const job = await JobModal.findById(jobId);
+
   if (!job) throw new NotFoundError("Job not found");
+
+  const applicant = job?.applicants?.find(
+    (app) => app.talent.toString() === applicantId
+  );
+  if (!applicant) {
+    throw new NotFoundError("Applicant not found for this job");
+  }
+  await job.save();
+  res
+    .status(StatusCodes.OK)
+    .json({ message: "Application status updated successfully", status });
 };
