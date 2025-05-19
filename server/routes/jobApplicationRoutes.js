@@ -8,7 +8,7 @@ router
   .get(authorizePermissions("employer"), getJobApplications);
 
 router
-  .route("/applications/:jobId/:applicantId/status")
+  .route("/:jobId/:applicantId/status")
   .patch(authorizePermissions("employer"), updateApplicationStatus);
 
 
