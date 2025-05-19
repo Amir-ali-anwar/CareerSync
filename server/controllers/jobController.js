@@ -126,8 +126,15 @@ export const applyForJob = async (req, res) => {
     talent: req.user.userId,
     job: id,
   });
+  console.log({existingApplication});
+  
   if (existingApplication) {
+    if(existingApplication.status === 'rejected'){
+      throw new BadRequestError("You have already been rejected for this job and cannot reapply.");
+  }else{
+
     throw new BadRequestError("You have already applied for this job");
+  }
   }
 
   const cvPath = `/uploads/cvs/${req?.file.filename}`; // Example path
