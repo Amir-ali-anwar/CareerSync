@@ -4,7 +4,7 @@ import { BadRequestError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
 import validator from "validator";
 
-const MAX_ORGS_PER_USER = 3;
+const MAX_ORGS_PER_USER = 4;
 export const createOrganization = async (req, res) => {
   const {
     name,
@@ -67,6 +67,7 @@ export const createOrganization = async (req, res) => {
     });
   }
 
+  
   const newOrganization = await OrganizationModal.create({
     name: name.trim(),
     logo,
@@ -98,4 +99,7 @@ export const createOrganization = async (req, res) => {
 };
 
 
-export const getAllOrganizations = async (req, res) => {};
+export const getAllOrganizations = async (req, res) => {
+    checkPermissions(req.user,job.createdBy)
+  checkPermissions()
+};
