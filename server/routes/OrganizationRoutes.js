@@ -10,5 +10,8 @@ router
   .route("/")
   .post(authorizePermissions('employer'), createOrganization)
 
+router
+  .route("/")
+  .get(authorizePermissions('employer'), getAllOrganizations)
 
 export default router;

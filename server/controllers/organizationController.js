@@ -67,7 +67,6 @@ export const createOrganization = async (req, res) => {
     });
   }
 
-  
   const newOrganization = await OrganizationModal.create({
     name: name.trim(),
     logo,
@@ -80,7 +79,9 @@ export const createOrganization = async (req, res) => {
     foundedYear,
     industry: industry.trim(),
     companySize,
-    hqLocation: `${headquarters?.city?.trim() || ""}, ${headquarters?.country?.trim() || ""}`,
+    hqLocation: `${headquarters?.city?.trim() || ""}, ${
+      headquarters?.country?.trim() || ""
+    }`,
     locations,
     organizationType,
     hiringContactEmail: hiringContactEmail?.trim(),
@@ -98,8 +99,10 @@ export const createOrganization = async (req, res) => {
     .json({ msg: "Organization created successfully", newOrganization });
 };
 
-
 export const getAllOrganizations = async (req, res) => {
-    checkPermissions(req.user,job.createdBy)
-  checkPermissions()
+  const organizationListing = await OrganizationModal.find({
+    createdBy: req.user.userId,
+  });
+  checkPermissions(req.user, organizationListing[0].createdBy.toString());
+  return res.status(StatusCodes.OK).json({ organizationListing, OrganizationCount:organizationListing.length });
 };
