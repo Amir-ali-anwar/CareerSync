@@ -138,6 +138,11 @@ export const updateOrganization = async (req, res) => {
     });
 };
 
+
+
+
+
+// Public controllers
 export const getAllPublicOrganizations= async(req,res)=>{
  const allOrganizations = await OrganizationModal.find({})
  
@@ -147,6 +152,15 @@ export const getAllPublicOrganizations= async(req,res)=>{
 
 } 
 
+export const getSinglePublicOrganization= async(req,res)=>{
+  const { id: organizationId } = req.params;
 
+ const SingleOrganization = await OrganizationModal.findById(organizationId)
+ 
+  return res
+    .status(StatusCodes.OK)
+    .json({  SingleOrganization });
+
+} 
 
 
