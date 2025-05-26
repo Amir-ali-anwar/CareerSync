@@ -12,6 +12,7 @@ import authRoutes from "./routes/authRoutes.js";
 import JobRoutes from './routes/jobRoutes.js'
 import GetJobApplication from './routes/jobApplicationRoutes.js'
 import talentRoutes from './routes/talentRoutes.js'
+import organizationRoutes from './routes/OrganizationRoutes.js'
 const app = express();
 app.use(express.json());
 app.use(cookieParser(process.env.JWT_SECRET));
@@ -20,6 +21,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/jobs",authenticateUser, JobRoutes);
 app.use("/api/v1/applications",authenticateUser, GetJobApplication);
 app.use("/api/v1/talents",authenticateUser, talentRoutes);
+app.use("/api/v1/organization",authenticateUser, organizationRoutes);
 
 // middlewares
 app.use(notFoundMiddleware);

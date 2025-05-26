@@ -126,7 +126,6 @@ export const applyForJob = async (req, res) => {
     talent: req.user.userId,
     job: id,
   });
-  console.log({existingApplication});
   
   if (existingApplication) {
     if(existingApplication.status === 'rejected'){
