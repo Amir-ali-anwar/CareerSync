@@ -137,3 +137,16 @@ export const updateOrganization = async (req, res) => {
       organization: updatedOrganization,
     });
 };
+
+export const getAllPublicOrganizations= async(req,res)=>{
+ const allOrganizations = await OrganizationModal.find({})
+ 
+  return res
+    .status(StatusCodes.CREATED)
+    .json({  TotalOrganizations: allOrganizations.length,allOrganizations });
+
+} 
+
+
+
+
