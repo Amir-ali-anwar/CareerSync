@@ -1,6 +1,6 @@
 import OrganizationModal from "../models/OrganizationModal.js";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError,NotFoundError } from "../errors/index.js";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
 import validator from "validator";
 
@@ -106,12 +106,10 @@ export const getAllOrganizations = async (req, res) => {
     createdBy: req.user.userId,
   });
   checkPermissions(req.user, organizationListing[0].createdBy.toString());
-  return res
-    .status(StatusCodes.OK)
-    .json({
-      organizationListing,
-      OrganizationCount: organizationListing.length,
-    });
+  return res.status(StatusCodes.OK).json({
+    organizationListing,
+    OrganizationCount: organizationListing.length,
+  });
 };
 
 export const updateOrganization = async (req, res) => {
@@ -130,37 +128,36 @@ export const updateOrganization = async (req, res) => {
     updateData,
     { new: true, runValidators: true }
   );
-  return res
-    .status(StatusCodes.OK)
-    .json({
-      msg: "Organization updated successfully",
-      organization: updatedOrganization,
-    });
+  return res.status(StatusCodes.OK).json({
+    msg: "Organization updated successfully",
+    organization: updatedOrganization,
+  });
 };
 
-
-
-
+export const deleteOrganization = async (req, res) => {
+  const { id: organizationId } = req.params;
+  const organization = await OrganizationModal.findById(organizationId);
+  if (!organization) {
+    throw new NotFoundError("Organization not found");
+  }
+  checkPermissions(req.user, organization.createdBy);
+  await organization.remove();
+  res.status(StatusCodes.OK).json({ msg: "Oganization deleted Successfully" });
+};
 
 // Public controllers
-export const getAllPublicOrganizations= async(req,res)=>{
- const allOrganizations = await OrganizationModal.find({})
- 
+export const getAllPublicOrganizations = async (req, res) => {
+  const allOrganizations = await OrganizationModal.find({});
+
   return res
     .status(StatusCodes.CREATED)
-    .json({  TotalOrganizations: allOrganizations.length,allOrganizations });
+    .json({ TotalOrganizations: allOrganizations.length, allOrganizations });
+};
 
-} 
-
-export const getSinglePublicOrganization= async(req,res)=>{
+export const getSinglePublicOrganization = async (req, res) => {
   const { id: organizationId } = req.params;
 
- const SingleOrganization = await OrganizationModal.findById(organizationId)
- 
-  return res
-    .status(StatusCodes.OK)
-    .json({  SingleOrganization });
+  const SingleOrganization = await OrganizationModal.findById(organizationId);
 
-} 
-
-
+  return res.status(StatusCodes.OK).json({ SingleOrganization });
+};
