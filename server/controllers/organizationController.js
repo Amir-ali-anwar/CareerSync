@@ -145,6 +145,16 @@ export const deleteOrganization = async (req, res) => {
   res.status(StatusCodes.OK).json({ msg: "Oganization deleted Successfully" });
 };
 
+export const followOrganization = async (req, res) => {
+  const organizationId = req.params.id;
+  const userId = req.user.userId;
+  const isfollowed= await organizationId.findById(userId)
+    console.log(isfollowed);
+    
+  return res.status(StatusCodes.OK).json({ msg: 'Organization followed successfully' });
+
+};
+
 // Public controllers
 export const getAllPublicOrganizations = async (req, res) => {
   const allOrganizations = await OrganizationModal.find({});
