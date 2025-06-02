@@ -3,6 +3,8 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
 import validator from "validator";
+import mongoose from "mongoose";
+
 
 const MAX_ORGS_PER_USER = 4;
 export const createOrganization = async (req, res) => {
@@ -148,11 +150,29 @@ export const deleteOrganization = async (req, res) => {
 export const followOrganization = async (req, res) => {
   const organizationId = req.params.id;
   const userId = req.user.userId;
-  const isfollowed= await organizationId.findById(userId)
-    console.log(isfollowed);
-    
-  return res.status(StatusCodes.OK).json({ msg: 'Organization followed successfully' });
+  const userObjectId = new mongoose.Types.ObjectId(userId);
 
+  const organization = await OrganizationModal.findById(organizationId);
+   if (!organization) {
+    return res.status(StatusCodes.NOT_FOUND).json({ message: "Organiation not found" });
+  }
+    console.log(organization)
+   const alreadyFollowing = organization?.followers?.some(
+    (f) => f.user.toString() === userId
+  );
+  
+  if (alreadyFollowing) {
+    return res.status(StatusCodes.OK).json({ message: "Already following" });
+  }
+  await OrganizationModal.findByIdAndUpdate(
+    organizationId,
+    { $push: { followers: { user: userObjectId, followedAt: new Date() } } },
+    { new: true }
+  );
+
+  return res
+    .status(StatusCodes.OK)
+    .json({ message: "Now following organization" });
 };
 
 // Public controllers
