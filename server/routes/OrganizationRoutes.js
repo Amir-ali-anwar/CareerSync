@@ -8,7 +8,7 @@ import {
   getAllPublicOrganizations,
   getSinglePublicOrganization,
   deleteOrganization,
-  followOrganization,
+  followOrganization,getOrganizationFollowers
 } from "../controllers/organizationController.js";
 router.route("/").post(authorizePermissions("employer"), createOrganization);
 router.route("/").get(authorizePermissions("employer"), getAllOrganizations);
@@ -19,6 +19,10 @@ router.route("/public/:id").get(getSinglePublicOrganization);
 router
   .route("/:id")
   .patch(authorizePermissions("employer"), updateOrganization)
-  .delete(authorizePermissions("employer"), deleteOrganization);
+  .delete(authorizePermissions("employer"), deleteOrganization)
+ 
+router
+  .route("/:id/followers")
+  .get(authorizePermissions("employer"), getOrganizationFollowers);
 
 export default router;

@@ -175,6 +175,14 @@ export const followOrganization = async (req, res) => {
     .json({ message: "Now following organization" });
 };
 
+
+export const getOrganizationFollowers= async (req,res)=>{
+   const organizationId = req.params.id;
+  const followers = await OrganizationModal.findById(organizationId).select('followers -_id');
+    return res.status(StatusCodes.OK).json(followers);
+}
+
+
 // Public controllers
 export const getAllPublicOrganizations = async (req, res) => {
   const allOrganizations = await OrganizationModal.find({});
