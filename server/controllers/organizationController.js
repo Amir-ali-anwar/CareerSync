@@ -144,7 +144,8 @@ export const deleteOrganization = async (req, res) => {
   }
   checkPermissions(req.user, organization.createdBy);
   await organization.remove();
-  res.status(StatusCodes.OK).json({ msg: "Oganization deleted Successfully" });
+  res.status(StatusCodes.OK).json({ msg: "Organization deleted successfully" });
+
 };
 
 export const followOrganization = async (req, res) => {
@@ -156,7 +157,6 @@ export const followOrganization = async (req, res) => {
    if (!organization) {
     return res.status(StatusCodes.NOT_FOUND).json({ message: "Organiation not found" });
   }
-    console.log(organization)
    const alreadyFollowing = organization?.followers?.some(
     (f) => f.user.toString() === userId
   );
@@ -176,20 +176,39 @@ export const followOrganization = async (req, res) => {
 };
 
 
-export const getOrganizationFollowers= async (req,res)=>{
-   const organizationId = req.params.id;
-  const followers = await OrganizationModal.findById(organizationId).select('followers -_id');
-    return res.status(StatusCodes.OK).json(followers);
-}
+export const getOrganizationFollowers = async (req, res) => {
+  const organizationId = req.params.id;
+  const organization = await OrganizationModal.findById(organizationId).select(
+    "followers -_id"
+  );
+  if (!organization) {
+    throw new NotFoundError("Organization not found");
+  }
+  const followers = organization.followers || [];
+  return res.status(StatusCodes.OK).json({ followers });
+};
 
+export const checkIfFollowingOrganization = async (req, res) => {
+  const userId = req.user.userId;
+  const organizationId = req.params.id;
+  const organization = await OrganizationModal.findById(organizationId);
+   if (!organization) {
+    return res.status(StatusCodes.NOT_FOUND).json({ message: "Organiation not found" });
+  }
+    const isFollowing = organization.followers?.some(
+    (f) => f.user.toString() === userId
+  );
+  return res.status(StatusCodes.OK).json({ isFollowing });
+
+};
 
 // Public controllers
 export const getAllPublicOrganizations = async (req, res) => {
   const allOrganizations = await OrganizationModal.find({});
 
-  return res
-    .status(StatusCodes.CREATED)
-    .json({ TotalOrganizations: allOrganizations.length, allOrganizations });
+ return res
+  .status(StatusCodes.OK)
+  .json({ TotalOrganizations: allOrganizations.length, allOrganizations });
 };
 
 export const getSinglePublicOrganization = async (req, res) => {

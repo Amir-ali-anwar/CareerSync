@@ -8,6 +8,7 @@ import {
   getAllPublicOrganizations,
   getSinglePublicOrganization,
   deleteOrganization,
+  checkIfFollowingOrganization,
   followOrganization,getOrganizationFollowers
 } from "../controllers/organizationController.js";
 router.route("/").post(authorizePermissions("employer"), createOrganization);
@@ -24,5 +25,10 @@ router
 router
   .route("/:id/followers")
   .get(authorizePermissions("employer"), getOrganizationFollowers);
+
+  router
+  .route("/:id/is-following")
+  .get(authorizePermissions("talent"), checkIfFollowingOrganization);
+
 
 export default router;
