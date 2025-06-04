@@ -124,7 +124,7 @@ export const applyForJob = async (req, res) => {
   if(job.isClosed){
      throw new BadRequestError("This job is no longer accepting applications.");
   }
-  if (jjob.applicationDeadline && new Date(job.applicationDeadline).getTime() < Date.now()) {
+  if (job.applicationDeadline && new Date(job.applicationDeadline).getTime() < Date.now()) {
   throw new BadRequestError("The application deadline for this job has passed");
 }
   const existingApplication = await JobApplicationModal.findOne({
@@ -184,7 +184,7 @@ export const applyForJob = async (req, res) => {
 
 export const myApplications = async (req, res) => {
   const userId = req.user.userId;
-  const appliedJobs = await JobApplicationModal.find({ user: userId }).populate(
+  const appliedJobs = await JobApplicationModal.find({ talent: userId }).populate(
     "job",
     "position company jobLocation"
   );
