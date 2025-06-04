@@ -100,7 +100,7 @@ export const updateJob = async (req, res) => {
 
 
 export const applyForJob = async (req, res) => {
-  const  {id}  = req.params;
+  const { id } = req.params;
 
   const {
     coverLetter,
@@ -112,41 +112,49 @@ export const applyForJob = async (req, res) => {
     locationPreferences,
     references,
   } = req.body;
-  
+
   if (!req?.file) {
     throw new BadRequestError("Please attach your cv");
   }
 
-  const job = await JobModal.findById(id);
+  const job = await JobModal.findById(id).lean();
   if (!job) {
-    throw new BadRequestError("Please provide all required job fields");
+    throw new NotFoundError("Job not found");
   }
-
+  if(job.isClosed){
+     throw new BadRequestError("This job is no longer accepting applications.");
+  }
+  if (jjob.applicationDeadline && new Date(job.applicationDeadline).getTime() < Date.now()) {
+  throw new BadRequestError("The application deadline for this job has passed");
+}
   const existingApplication = await JobApplicationModal.findOne({
     talent: req.user.userId,
     job: id,
   });
-  
+
   if (existingApplication) {
-    if(existingApplication.status === 'rejected'){
-      throw new BadRequestError("You have already been rejected for this job and cannot reapply.");
-  }else{
-
-    throw new BadRequestError("You have already applied for this job");
+    if (existingApplication.status === "rejected") {
+      throw new BadRequestError(
+        "You have already been rejected for this job and cannot reapply."
+      );
+    } else {
+      throw new BadRequestError("You have already applied for this job");
+    }
   }
-  }
 
-  const cvPath = `/uploads/cvs/${req?.file.filename}`; // Example path
-  const portfolioPath = portfolio
-    ? `/uploads/portfolio/${portfolio.filename}`
-    : null;
+  const cvPath = `/uploads/cvs/${req?.file.filename}`; 
+  // const portfolioPath = portfolio
+  //   ? `/uploads/portfolio/${portfolio.filename}`
+  //   : null;
+  const portfolioPath = portfolio || null;
+
 
   const newApplication = await JobApplicationModal.create({
     job: id,
-    Jobtitle:job?.title,
+    Jobtitle: job?.title,
     talent: req.user.userId,
     coverLetter: coverLetter || "",
-    cv: cvPath || '',
+    cv: cvPath || "",
     portfolio: portfolioPath,
     linkedInProfile: linkedInProfile || "",
     skills: skills || [],
@@ -154,26 +162,23 @@ export const applyForJob = async (req, res) => {
     availability: availability || "",
     locationPreferences: locationPreferences || "",
     references: references || [],
-   
   });
 
   await JobModal.findByIdAndUpdate(id, {
     $push: {
       applicants: {
         talent: req.user.userId,
-        job:id,
+        job: id,
         resume: cvPath || "",
         status: "pending",
         appliedAt: new Date(),
       },
     },
   });
-  res
-    .status(StatusCodes.CREATED)
-    .json({
-      msg: "Successfully applied for the job",
-      application: newApplication,
-    });
+  res.status(StatusCodes.CREATED).json({
+    msg: "Successfully applied for the job",
+    application: newApplication,
+  });
 };
 
 
