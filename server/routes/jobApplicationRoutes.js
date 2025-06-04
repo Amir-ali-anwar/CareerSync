@@ -1,6 +1,6 @@
 import express from "express";
 const router = express.Router();
-import { getJobApplications,updateApplicationStatus } from "../controllers/jobApplicationController.js";
+import { getJobApplications,updateApplicationStatus,withdrawApplication } from "../controllers/jobApplicationController.js";
 import { authorizePermissions } from "../middlewares/permissions.js";
 
 router
@@ -11,5 +11,6 @@ router
   .route("/:jobId/:applicantId/status")
   .patch(authorizePermissions("employer"), updateApplicationStatus);
 
+router.patch('/:id/withdraw', authorizePermissions('talent'), withdrawApplication);
 
 export default router;

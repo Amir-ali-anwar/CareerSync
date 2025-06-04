@@ -4,6 +4,7 @@ import { StatusCodes } from "http-status-codes";
 import { BadRequestError,NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
 const VALID_STATUSES = ['pending', 'under review', 'shortlisted', 'interview', 'rejected'];
+const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
 
 export const getJobApplications = async (req, res) => {
   const { jobId } = req.params;
@@ -52,4 +53,23 @@ export const updateApplicationStatus = async (req, res) => {
   res
     .status(StatusCodes.OK)
     .json({ message: "Application status updated successfully", status });
+};
+
+export const withdrawApplication = async (req, res) => {
+  const { id: applicationId } = req.params;
+  const application = await JobApplicationModal.findById(applicationId);
+
+
+  checkPermissions(req.user.userId,application.talent)
+  if (!ALLOWED_WITHDRAW_STATUSES.includes(application.status)) {
+    throw new BadRequestError(
+      "You cannot withdraw after decision has been made"
+    );
+  }
+
+  application.status = "withdrawn";
+  await application.save();
+  res
+    .status(StatusCodes.OK)
+    .json({ msg: "Application withdrawn successfully" });
 };
