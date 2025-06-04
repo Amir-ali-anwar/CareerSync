@@ -4,7 +4,7 @@ import { authorizePermissions } from "../middlewares/permissions.js";
 import {
   getAllTalents,
   getTalentById,
-  exportApplications,
+  exportApplications,getMyApplications
 } from "../controllers/talentController.js";
 const router = Router();
 
