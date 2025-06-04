@@ -1,7 +1,7 @@
 import JobModal from "../models/JobsModal.js";
 import JobApplicationModal from '../models/JobApplicationModal.js'
 import { StatusCodes } from "http-status-codes";
-import {BadRequestError} from "../errors/index.js";
+import {BadRequestError, NotFoundError} from "../errors/index.js";
 import {checkPermissions} from "../middlewares/permissions.js";
 export const createJob = async (req, res) => {
   const { title, company, jobType, jobLocation, description } = req.body;
@@ -206,4 +206,11 @@ export const myApplications = async (req, res) => {
 };
 
 
-
+export const closeJob = async (req, res) => {
+  const job = await JobModal.findById(req.params.jobId);
+  if (!job) throw new NotFoundError("Job not found");
+  checkPermissions(req.user, job.createdBy);
+  job.isClosed = true;
+  await job.save();
+  res.status(StatusCodes.OK).json({ msg: "Job closed for applications" });
+};

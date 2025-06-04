@@ -3,7 +3,7 @@ import {authorizePermissions} from "../middlewares/permissions.js";
 import uploadCV from '../middlewares/fileuploader.js'
 const router = Router();
 
-import { createJob, deleteJob, getAllJobs, getJob, updateJob,applyForJob,myApplications } from "../controllers/jobController.js";
+import { createJob, deleteJob, getAllJobs, getJob, updateJob,applyForJob,myApplications,closeJob } from "../controllers/jobController.js";
 
 router
   .route("/")
@@ -18,4 +18,8 @@ router
   .get(authorizePermissions('employer'), getJob)
   .patch(authorizePermissions('employer'), updateJob)
   .delete(authorizePermissions('employer'), deleteJob);
+router.patch('/:jobId/close', authorizePermissions('employer'), closeJob);
+
+
+
 export default router;
