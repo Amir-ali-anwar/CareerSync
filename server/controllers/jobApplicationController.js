@@ -33,20 +33,22 @@ const job = jobApplicants[0].job;
 export const updateApplicationStatus = async (req, res) => {
   const { jobId, applicantId } = req.params;
   const { status } = req.body;
-   if (!VALID_STATUSES.includes(status)) {
+  if (!VALID_STATUSES.includes(status)) {
     throw new BadRequestError("Invalid application status");
   }
-  const job = await JobModal.findById(jobId);
+  const application = await JobApplicationModal.findOne({
+    job: jobId,
+    talent: applicantId,
+  });
 
-  if (!job) throw new NotFoundError("Job not found");
-
-  const applicant = job?.applicants?.find(
-    (app) => app.talent.toString() === applicantId
-  );
-  if (!applicant) {
-    throw new NotFoundError("Applicant not found for this job");
+  if (!application) {
+    throw new NotFoundError("Job application not found");
   }
-  await job.save();
+  const job = await JobModal.findById(jobId).populate("createdBy");
+  checkPermissions(req.user, job.createdBy._id);
+
+  application.status = status;
+  await application.save();
   res
     .status(StatusCodes.OK)
     .json({ message: "Application status updated successfully", status });

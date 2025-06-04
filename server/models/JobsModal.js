@@ -34,11 +34,20 @@ const JobSchema = new mongoose.Schema(
       },
       default: { country: "", city: "" },
     },
+    applicationDeadline: {
+      type: Date,
+      default: null,
+    },
+    isClosed: {
+      type: Boolean,
+      default: false,
+    },
     createdBy: {
       type: mongoose.Types.ObjectId,
       ref: "User",
       required: true,
     },
+
     applicants: [
       {
         talent: {

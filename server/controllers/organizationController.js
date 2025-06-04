@@ -5,7 +5,6 @@ import { checkPermissions } from "../middlewares/permissions.js";
 import validator from "validator";
 import mongoose from "mongoose";
 
-
 const MAX_ORGS_PER_USER = 4;
 export const createOrganization = async (req, res) => {
   const {
@@ -145,7 +144,6 @@ export const deleteOrganization = async (req, res) => {
   checkPermissions(req.user, organization.createdBy);
   await organization.remove();
   res.status(StatusCodes.OK).json({ msg: "Organization deleted successfully" });
-
 };
 
 export const followOrganization = async (req, res) => {
@@ -154,13 +152,15 @@ export const followOrganization = async (req, res) => {
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
   const organization = await OrganizationModal.findById(organizationId);
-   if (!organization) {
-    return res.status(StatusCodes.NOT_FOUND).json({ message: "Organiation not found" });
+  if (!organization) {
+    return res
+      .status(StatusCodes.NOT_FOUND)
+      .json({ message: "Organiation not found" });
   }
-   const alreadyFollowing = organization?.followers?.some(
+  const alreadyFollowing = organization?.followers?.some(
     (f) => f.user.toString() === userId
   );
-  
+
   if (alreadyFollowing) {
     return res.status(StatusCodes.OK).json({ message: "Already following" });
   }
@@ -174,7 +174,6 @@ export const followOrganization = async (req, res) => {
     .status(StatusCodes.OK)
     .json({ message: "Now following organization" });
 };
-
 
 export const getOrganizationFollowers = async (req, res) => {
   const organizationId = req.params.id;
@@ -192,23 +191,26 @@ export const checkIfFollowingOrganization = async (req, res) => {
   const userId = req.user.userId;
   const organizationId = req.params.id;
   const organization = await OrganizationModal.findById(organizationId);
-   if (!organization) {
-    return res.status(StatusCodes.NOT_FOUND).json({ message: "Organiation not found" });
+  if (!organization) {
+    return res
+      .status(StatusCodes.NOT_FOUND)
+      .json({ message: "Organiation not found" });
   }
-    const isFollowing = organization.followers?.some(
+  const isFollowing = organization.followers?.some(
     (f) => f.user.toString() === userId
   );
   return res.status(StatusCodes.OK).json({ isFollowing });
-
 };
+
+export const getOrganizationAnalytics = async (req, res) => {};
 
 // Public controllers
 export const getAllPublicOrganizations = async (req, res) => {
   const allOrganizations = await OrganizationModal.find({});
 
- return res
-  .status(StatusCodes.OK)
-  .json({ TotalOrganizations: allOrganizations.length, allOrganizations });
+  return res
+    .status(StatusCodes.OK)
+    .json({ TotalOrganizations: allOrganizations.length, allOrganizations });
 };
 
 export const getSinglePublicOrganization = async (req, res) => {
@@ -217,4 +219,17 @@ export const getSinglePublicOrganization = async (req, res) => {
   const SingleOrganization = await OrganizationModal.findById(organizationId);
 
   return res.status(StatusCodes.OK).json({ SingleOrganization });
+};
+
+export const getPublicFollowerCount = async (req, res) => {
+   const { id: organizationId } = req.params;
+  const organization = await OrganizationModal.findById(organizationId).select(
+    "followers -_id"
+  );
+   if (!organization) {
+    return res
+      .status(StatusCodes.NOT_FOUND)
+      .json({ message: "Organiation not found" });
+  }
+  console.log(organization)
 };

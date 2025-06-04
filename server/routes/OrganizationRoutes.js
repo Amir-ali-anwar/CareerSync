@@ -9,12 +9,13 @@ import {
   getSinglePublicOrganization,
   deleteOrganization,
   checkIfFollowingOrganization,
-  followOrganization,getOrganizationFollowers
+  followOrganization,getOrganizationFollowers,getPublicFollowerCount
 } from "../controllers/organizationController.js";
 router.route("/").post(authorizePermissions("employer"), createOrganization);
 router.route("/").get(authorizePermissions("employer"), getAllOrganizations);
 router.route("/:id/follow").post(authorizePermissions("talent"), followOrganization);
 router.route("/public").get(getAllPublicOrganizations);
+router.route("/public-organizations/:id/followers/count").get(getPublicFollowerCount);
 
 router.route("/public/:id").get(getSinglePublicOrganization);
 router
