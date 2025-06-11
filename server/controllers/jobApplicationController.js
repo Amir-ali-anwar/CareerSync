@@ -77,5 +77,5 @@ export const withdrawApplication = async (req, res) => {
 
 export const getMyApplications = async (req, res) => {
   const applications = await JobApplicationModal.find({ talent: req.user.userId }).populate('job');
-  res.status(StatusCodes.OK).json({ applications });
+  res.status(StatusCodes.OK).json({TotalSubmittedApplications:applications.length, applications});
 };

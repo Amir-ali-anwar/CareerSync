@@ -19,7 +19,6 @@ export const getTalentById=async(req,res)=>{
   const talent = await JobApplicationModal.find({talent:talentId}).populate('job')
   res.status(StatusCodes.OK).json({ talent });
 }
-
 export const exportApplications = async (req, res) => {
   const employerId = req.user.userId;
 
