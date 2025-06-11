@@ -1,7 +1,13 @@
 import express from "express";
 const router = express.Router();
-import { getJobApplications,updateApplicationStatus,withdrawApplication } from "../controllers/jobApplicationController.js";
+import { getJobApplications,updateApplicationStatus,withdrawApplication,getMyApplications } from "../controllers/jobApplicationController.js";
 import { authorizePermissions } from "../middlewares/permissions.js";
+
+
+
+router
+  .route("/my")
+  .get(authorizePermissions("talent"), getMyApplications);
 
 router
   .route("/job/:jobId")

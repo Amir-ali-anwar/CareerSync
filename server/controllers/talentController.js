@@ -19,7 +19,6 @@ export const getTalentById=async(req,res)=>{
   const talent = await JobApplicationModal.find({talent:talentId}).populate('job')
   res.status(StatusCodes.OK).json({ talent });
 }
-
 export const exportApplications = async (req, res) => {
   const employerId = req.user.userId;
 
@@ -62,9 +61,9 @@ export const exportApplications = async (req, res) => {
 
   const json2csvParser = new Parser({ fields });
   const csv = json2csvParser.parse(formattedData);
-
-  // ✅ THIS triggers download
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename=job-applications.csv');
   res.status(StatusCodes.OK).send(csv);
 };
+
+
