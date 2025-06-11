@@ -231,5 +231,6 @@ export const getPublicFollowerCount = async (req, res) => {
       .status(StatusCodes.NOT_FOUND)
       .json({ message: "Organiation not found" });
   }
-  console.log(organization)
+
+   return res.status(StatusCodes.OK).json({ organization });
 };
