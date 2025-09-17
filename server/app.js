@@ -13,9 +13,18 @@ import JobRoutes from './routes/jobRoutes.js'
 import GetJobApplication from './routes/jobApplicationRoutes.js'
 import talentRoutes from './routes/talentRoutes.js'
 import organizationRoutes from './routes/OrganizationRoutes.js'
+import { swaggerUi, specs } from './config/swagger.js';
 const app = express();
 app.use(express.json());
 app.use(cookieParser(process.env.JWT_SECRET));
+
+// Swagger Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "CareerSync API Documentation"
+}));
+
 // routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/jobs",authenticateUser, JobRoutes);

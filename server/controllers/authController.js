@@ -8,6 +8,105 @@ import { BadRequestError, UnAuthenticatedError } from "../errors/index.js";
 import crypto from "crypto";
 import User from "../models/User.js";
 import Token from "../models/Token.js";
+
+/**
+ * @swagger
+ * /api/v1/auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
+ *               - lastName
+ *               - location
+ *               - role
+ *               - phone
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: User's first name
+ *                 example: John
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *                 example: john.doe@example.com
+ *               password:
+ *                 type: string
+ *                 minLength: 5
+ *                 description: User's password
+ *                 example: password123
+ *               lastName:
+ *                 type: string
+ *                 description: User's last name
+ *                 example: Doe
+ *               location:
+ *                 type: object
+ *                 required:
+ *                   - country
+ *                   - city
+ *                 properties:
+ *                   country:
+ *                     type: string
+ *                     description: User's country
+ *                     example: United States
+ *                   city:
+ *                     type: string
+ *                     description: User's city
+ *                     example: New York
+ *               role:
+ *                 type: string
+ *                 enum: [talent, employer]
+ *                 description: User's role
+ *                 example: talent
+ *               phone:
+ *                 type: string
+ *                 description: User's phone number
+ *                 example: +1234567890
+ *               companyName:
+ *                 type: string
+ *                 description: Company name (required for employer role)
+ *                 example: Tech Corp
+ *               companySize:
+ *                 type: string
+ *                 description: Company size (required for employer role)
+ *                 example: 51-200
+ *               industry:
+ *                 type: string
+ *                 description: Industry (required for employer role)
+ *                 example: Technology
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msg:
+ *                   type: string
+ *                   example: Success! Please check your email to verify your account
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       409:
+ *         description: Email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 const register = async (req, res) => {
   const {
     name,
@@ -97,6 +196,60 @@ const register = async (req, res) => {
   });
 };
 
+/**
+ * @swagger
+ * /api/v1/auth/login:
+ *   post:
+ *     summary: Login user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *                 example: john.doe@example.com
+ *               password:
+ *                 type: string
+ *                 description: User's password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: User logged in successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tokenUser:
+ *                   $ref: '#/components/schemas/User'
+ *         headers:
+ *           Set-Cookie:
+ *             description: JWT tokens set in httpOnly cookies
+ *             schema:
+ *               type: string
+ *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure
+ *       400:
+ *         description: Bad request - missing credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - invalid credentials or unverified email
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 const login = async (req, res, next) => {
   const { email, password } = req.body;
 
@@ -138,6 +291,56 @@ const login = async (req, res, next) => {
   res.status(StatusCodes.OK).json({ tokenUser });
 };
 
+/**
+ * @swagger
+ * /api/v1/auth/updateUser:
+ *   patch:
+ *     summary: Update user profile
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - name
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's new email address
+ *                 example: john.doe@example.com
+ *               name:
+ *                 type: string
+ *                 description: User's new first name
+ *                 example: John
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 const updateUser = async (req, res, next) => {
   const { email, name } = req.body;
   if (!email || !name) {
@@ -155,6 +358,57 @@ const updateUser = async (req, res, next) => {
   res.status(StatusCodes.OK).json({ user: tokenUser });
 };
 
+/**
+ * @swagger
+ * /api/v1/auth/updateUserPassword:
+ *   patch:
+ *     summary: Update user password
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - oldPassword
+ *               - newPassword
+ *             properties:
+ *               oldPassword:
+ *                 type: string
+ *                 description: Current password
+ *                 example: oldpassword123
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 5
+ *                 description: New password
+ *                 example: newpassword123
+ *     responses:
+ *       200:
+ *         description: Password updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msg:
+ *                   type: string
+ *                   example: Success! Password Updated.
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 const updateUserPassword = async (req, res) => {
   const { oldPassword, newPassword } = req.body;
 
@@ -177,11 +431,80 @@ const updateUserPassword = async (req, res) => {
   res.status(StatusCodes.OK).json({ msg: "Success! Password Updated." });
 };
 
+/**
+ * @swagger
+ * /api/v1/auth/showCurrentUser:
+ *   get:
+ *     summary: Get current user information
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized - invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 const showCurrentUser = async (req, res) => {
   res.status(StatusCodes.OK).json({ user: req.user });
 };
 
 
+/**
+ * @swagger
+ * /api/v1/auth/resend-verification:
+ *   post:
+ *     summary: Resend email verification token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *                 example: john.doe@example.com
+ *     responses:
+ *       200:
+ *         description: Verification email resent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msg:
+ *                   type: string
+ *                   example: Verification email resent. Please check your inbox.
+ *       400:
+ *         description: Bad request - validation error or account already verified
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - no account found with this email
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 const resendVerificationToken = async (req, res) => {
   const { email } = req.body;
   if (!email) {
@@ -218,6 +541,47 @@ const resendVerificationToken = async (req, res) => {
   });
 
 };
+
+/**
+ * @swagger
+ * /api/v1/auth/verify-Email:
+ *   get:
+ *     summary: Verify user email address
+ *     tags: [Authentication]
+ *     parameters:
+ *       - in: query
+ *         name: verificationToken
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Email verification token
+ *         example: abc123def456ghi789
+ *       - in: query
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: email
+ *         description: User's email address
+ *         example: john.doe@example.com
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msg:
+ *                   type: string
+ *                   example: Email Verified
+ *       401:
+ *         description: Unauthorized - invalid token or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 const verifyEmail = async (req, res) => {
   const { verificationToken, email } = req.body;
   const user = await User.findOne({ email });
@@ -238,6 +602,30 @@ const verifyEmail = async (req, res) => {
   res.status(StatusCodes.OK).json({ msg: "Email Verified" });
 };
 
+/**
+ * @swagger
+ * /api/v1/auth/logout:
+ *   get:
+ *     summary: Logout user
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: User logged out successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msg:
+ *                   type: string
+ *                   example: user logged out!
+ *         headers:
+ *           Set-Cookie:
+ *             description: JWT tokens cleared from cookies
+ *             schema:
+ *               type: string
+ *               example: accessToken=logout; HttpOnly; Secure; Expires=Thu, 01 Jan 1970 00:00:00 GMT
+ */
 const logout = async (req, res) => {
   res.cookie("accessToken", "logout", {
     httpOnly: true,
