@@ -526,7 +526,7 @@ const resendVerificationToken = async (req, res) => {
   user.verificationToken = verificationToken;
   user.verificationTokenExpires = verificationTokenExpires;
 
-  await user.save({validateBeforeSave:false});
+  await user.save({ validateBeforeSave: false });
 
   const origin = req.get("origin") || "http://localhost:3000";
   await sendVerificationEmail({
@@ -597,7 +597,7 @@ const verifyEmail = async (req, res) => {
   (user.isVerified = true),
     (user.verified = Date.now()),
     (user.verificationToken = "");
-    user.verificationTokenExpires = null;
+  user.verificationTokenExpires = null;
   await user.save();
   res.status(StatusCodes.OK).json({ msg: "Email Verified" });
 };

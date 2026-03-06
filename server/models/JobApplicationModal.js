@@ -16,7 +16,7 @@ const JobApplicationSchema = new mongoose.Schema(
       enum: ['pending', 'under review', 'shortlisted', 'interview', 'rejected'],
       default: 'pending',
     },
-    Jobtitle:{
+    Jobtitle: {
       type: String
     },
     cv: {

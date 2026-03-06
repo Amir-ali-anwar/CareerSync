@@ -7,7 +7,7 @@ import notFoundMiddleware from "./middlewares/not-found.js";
 import errorHandlerMiddleware from "./middlewares/error-handler.js";
 import authenticateUser from './middlewares/auth.js'
 import cookieParser from "cookie-parser";
-import 'express-async-errors'; 
+import 'express-async-errors';
 import authRoutes from "./routes/authRoutes.js";
 import JobRoutes from './routes/jobRoutes.js'
 import GetJobApplication from './routes/jobApplicationRoutes.js'
@@ -27,21 +27,23 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
 
 // routes
 app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/jobs",authenticateUser, JobRoutes);
-app.use("/api/v1/applications",authenticateUser, GetJobApplication);
-app.use("/api/v1/talents",authenticateUser, talentRoutes);
-app.use("/api/v1/organization",authenticateUser, organizationRoutes);
+app.use("/api/v1/jobs", authenticateUser, JobRoutes);
+app.use("/api/v1/applications", authenticateUser, GetJobApplication);
+app.use("/api/v1/talents", authenticateUser, talentRoutes);
+app.use("/api/v1/organization", organizationRoutes);
 
 // middlewares
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
 
 app.use(morgan("tiny"));
-const PORT = process.env.port || 4000;
+const PORT = process.env.PORT || process.env.port || 4000;
+
 
 const start = async () => {
   try {
-    await connectDB(process.env.MONGO_URI);
+    const mongoUri = process.env.MONGO_URL || process.env.MONGO_URI;
+    await connectDB(mongoUri);
     app.listen(PORT, () => {
       console.log(`server listening on the ${PORT}`);
     });

@@ -1,7 +1,7 @@
 import JobModal from "../models/JobsModal.js";
 import JobApplicationModal from "../models/JobApplicationModal.js";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError,NotFoundError } from "../errors/index.js";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
 const VALID_STATUSES = ['pending', 'under review', 'shortlisted', 'interview', 'rejected'];
 const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
@@ -54,7 +54,7 @@ export const getJobApplications = async (req, res) => {
     .populate({
       path: "job",
       populate: {
-        path: "createdBy", 
+        path: "createdBy",
         model: "User",
         select: "name email role",
       },
@@ -62,7 +62,7 @@ export const getJobApplications = async (req, res) => {
   if (!jobApplicants || jobApplicants.length === 0) {
     return res.status(404).json({ error: "No job applications found." });
   }
-const job = jobApplicants[0].job;
+  const job = jobApplicants[0].job;
 
   if (!job || !job.createdBy) {
     return res.status(404).json({ error: "Job or creator info not found." });
@@ -211,7 +211,7 @@ export const withdrawApplication = async (req, res) => {
   const application = await JobApplicationModal.findById(applicationId);
 
 
-  checkPermissions(req.user.userId,application.talent)
+  checkPermissions(req.user.userId, application.talent)
   if (!ALLOWED_WITHDRAW_STATUSES.includes(application.status)) {
     throw new BadRequestError(
       "You cannot withdraw after decision has been made"
@@ -258,5 +258,5 @@ export const withdrawApplication = async (req, res) => {
  */
 export const getMyApplications = async (req, res) => {
   const applications = await JobApplicationModal.find({ talent: req.user.userId }).populate('job');
-  res.status(StatusCodes.OK).json({TotalSubmittedApplications:applications.length, applications});
+  res.status(StatusCodes.OK).json({ TotalSubmittedApplications: applications.length, applications });
 };
