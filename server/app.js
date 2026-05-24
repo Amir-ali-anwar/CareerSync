@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 dotenv.config();
 import morgan from "morgan";
+import cors from "cors";
 import connectDB from "./db/connect.js";
 import notFoundMiddleware from "./middlewares/not-found.js";
 import errorHandlerMiddleware from "./middlewares/error-handler.js";
@@ -14,9 +15,19 @@ import GetJobApplication from './routes/jobApplicationRoutes.js'
 import talentRoutes from './routes/talentRoutes.js'
 import organizationRoutes from './routes/OrganizationRoutes.js'
 import { swaggerUi, specs } from './config/swagger.js';
+
 const app = express();
 app.use(express.json());
 app.use(cookieParser(process.env.JWT_SECRET));
+app.use(morgan("tiny"));
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
@@ -36,9 +47,7 @@ app.use("/api/v1/organization", organizationRoutes);
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
 
-app.use(morgan("tiny"));
 const PORT = process.env.PORT || process.env.port || 4000;
-
 
 const start = async () => {
   try {

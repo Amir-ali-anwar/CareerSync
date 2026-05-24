@@ -280,6 +280,7 @@ const login = async (req, res, next) => {
     }
     refreshToken = existingToken.refreshToken;
     attachCookiesToResponse({ res, user: tokenUser, refreshToken });
+    return res.status(StatusCodes.OK).json({ tokenUser });
   }
   refreshToken = crypto.randomBytes(40).toString("hex");
   const userAgent = req.headers["user-agent"];
@@ -583,7 +584,7 @@ const resendVerificationToken = async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 const verifyEmail = async (req, res) => {
-  const { verificationToken, email } = req.body;
+  const { verificationToken, email } = req.query.email ? req.query : req.body;
   const user = await User.findOne({ email });
   if (!user) {
     throw new UnAuthenticatedError("Please provide valid email address");

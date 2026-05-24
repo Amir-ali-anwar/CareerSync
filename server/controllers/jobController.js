@@ -145,7 +145,7 @@ export const deleteJob = async (req, res) => {
     throw new BadRequestError("Job not found");
   }
   checkPermissions(req.user,job.createdBy)
-  await job.remove();
+  await job.deleteOne();
   res.status(StatusCodes.OK).json({ msg: 'job deleted Successfully'});
 };
 

@@ -210,8 +210,7 @@ export const withdrawApplication = async (req, res) => {
   const { id: applicationId } = req.params;
   const application = await JobApplicationModal.findById(applicationId);
 
-
-  checkPermissions(req.user.userId, application.talent)
+  checkPermissions(req.user, application.talent);
   if (!ALLOWED_WITHDRAW_STATUSES.includes(application.status)) {
     throw new BadRequestError(
       "You cannot withdraw after decision has been made"
