@@ -9,7 +9,7 @@ import {
   getSinglePublicOrganization,
   deleteOrganization,
   checkIfFollowingOrganization,
-  followOrganization,getOrganizationFollowers,getPublicFollowerCount
+  followOrganization, getOrganizationFollowers, getPublicFollowerCount
 } from "../controllers/organizationController.js";
 router.route("/").post(authorizePermissions("employer"), createOrganization);
 router.route("/").get(authorizePermissions("employer"), getAllOrganizations);
@@ -22,12 +22,12 @@ router
   .route("/:id")
   .patch(authorizePermissions("employer"), updateOrganization)
   .delete(authorizePermissions("employer"), deleteOrganization)
- 
+
 router
   .route("/:id/followers")
   .get(authorizePermissions("employer"), getOrganizationFollowers);
 
-  router
+router
   .route("/:id/is-following")
   .get(authorizePermissions("talent"), checkIfFollowingOrganization);
 
