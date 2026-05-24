@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import validator from "validator";
 // import JobApplicationModal from "./JobApplicationModal.js";
 import JobsModal from "./JobsModal.js";
+import JobApplicationModal from "./JobApplicationModal.js";
 import bcrypt from "bcryptjs";
 const UserSchema = new mongoose.Schema(
   {
@@ -91,11 +92,7 @@ const UserSchema = new mongoose.Schema(
 UserSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
 
-  // Ensure SALT_ROUNDS is parsed properly as an integer
-  const saltRounds = parseInt(process.env.SALT_ROUNDS, 10);
-  if (isNaN(saltRounds)) {
-    throw new Error("Invalid SALT_ROUNDS value in environment variables");
-  }
+  const saltRounds = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
   const salt = await bcrypt.genSalt(saltRounds);
   this.password = await bcrypt.hash(this.password, salt);
@@ -106,7 +103,7 @@ UserSchema.post("findOneAndDelete", async (doc) => {
       await JobsModal.deleteMany({ createdBy: doc._id });
     }
     if (doc.role === "talent") {
-      await JobApplication.deleteMany({ talent: doc._id });
+      await JobApplicationModal.deleteMany({ talent: doc._id });
     }
   }
 });

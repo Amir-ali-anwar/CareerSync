@@ -16,6 +16,7 @@ import organizationRoutes from './routes/OrganizationRoutes.js'
 const app = express();
 app.use(express.json());
 app.use(cookieParser(process.env.JWT_SECRET));
+app.use(morgan("tiny"));
 // routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/jobs",authenticateUser, JobRoutes);
@@ -27,12 +28,11 @@ app.use("/api/v1/organization",authenticateUser, organizationRoutes);
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
 
-app.use(morgan("tiny"));
-const PORT = process.env.port || 4000;
+const PORT = process.env.PORT || process.env.port || 4000;
 
 const start = async () => {
   try {
-    await connectDB(process.env.MONGO_URI);
+    await connectDB(process.env.MONGO_URI || process.env.MONGO_URL);
     app.listen(PORT, () => {
       console.log(`server listening on the ${PORT}`);
     });

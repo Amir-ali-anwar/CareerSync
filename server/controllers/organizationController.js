@@ -106,7 +106,13 @@ export const getAllOrganizations = async (req, res) => {
   const organizationListing = await OrganizationModal.find({
     createdBy: req.user.userId,
   });
-  checkPermissions(req.user, organizationListing[0].createdBy.toString());
+  if (organizationListing.length === 0) {
+    return res.status(StatusCodes.OK).json({
+      organizationListing: [],
+      OrganizationCount: 0,
+    });
+  }
+  checkPermissions(req.user, organizationListing[0].createdBy);
   return res.status(StatusCodes.OK).json({
     organizationListing,
     OrganizationCount: organizationListing.length,
@@ -142,7 +148,7 @@ export const deleteOrganization = async (req, res) => {
     throw new NotFoundError("Organization not found");
   }
   checkPermissions(req.user, organization.createdBy);
-  await organization.remove();
+  await organization.deleteOne();
   res.status(StatusCodes.OK).json({ msg: "Organization deleted successfully" });
 };
 
@@ -231,5 +237,6 @@ export const getPublicFollowerCount = async (req, res) => {
       .status(StatusCodes.NOT_FOUND)
       .json({ message: "Organiation not found" });
   }
-  console.log(organization)
+
+   return res.status(StatusCodes.OK).json({ organization });
 };
