@@ -1,8 +1,9 @@
 import JobModal from "../models/JobsModal.js";
 import JobApplicationModal from '../models/JobApplicationModal.js'
+import mongoose from "mongoose";
 import { StatusCodes } from "http-status-codes";
-import {BadRequestError, NotFoundError} from "../errors/index.js";
-import {checkPermissions} from "../middlewares/permissions.js";
+import { BadRequestError, NotFoundError } from "../errors/index.js";
+import { checkPermissions } from "../middlewares/permissions.js";
 
 /**
  * @swagger
@@ -141,12 +142,12 @@ export const createJob = async (req, res) => {
 export const deleteJob = async (req, res) => {
   const { id: jobId } = req.params;
   const job = await JobModal.findById(jobId);
-  if(!job){
+  if (!job) {
     throw new BadRequestError("Job not found");
   }
-  checkPermissions(req.user,job.createdBy)
+  checkPermissions(req.user, job.createdBy)
   await job.deleteOne();
-  res.status(StatusCodes.OK).json({ msg: 'job deleted Successfully'});
+  res.status(StatusCodes.OK).json({ msg: 'job deleted Successfully' });
 };
 
 /**
@@ -232,10 +233,10 @@ export const deleteJob = async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 export const getAllJobs = async (req, res) => {
-  const { search, jobStatus, jobType, sort,title } = req.query;
+  const { search, jobStatus, jobType, sort, title } = req.query;
 
   const queryObject = {
-    createdBy: req.user.userId, 
+    createdBy: req.user.userId,
   };
 
   if (search) {
@@ -272,8 +273,8 @@ export const getAllJobs = async (req, res) => {
     .sort(sortKey)
     .skip(skip)
     .limit(limit);
-  console.log({jobs});
-  
+  console.log({ jobs });
+
   const totalJobs = await JobModal.countDocuments(queryObject);
   const numOfPages = Math.ceil(totalJobs / limit);
   res
@@ -551,12 +552,12 @@ export const applyForJob = async (req, res) => {
   if (!job) {
     throw new NotFoundError("Job not found");
   }
-  if(job.isClosed){
-     throw new BadRequestError("This job is no longer accepting applications.");
+  if (job.isClosed) {
+    throw new BadRequestError("This job is no longer accepting applications.");
   }
   if (job.applicationDeadline && new Date(job.applicationDeadline).getTime() < Date.now()) {
-  throw new BadRequestError("The application deadline for this job has passed");
-}
+    throw new BadRequestError("The application deadline for this job has passed");
+  }
   const existingApplication = await JobApplicationModal.findOne({
     talent: req.user.userId,
     job: id,
@@ -572,39 +573,60 @@ export const applyForJob = async (req, res) => {
     }
   }
 
-  const cvPath = `/uploads/cvs/${req?.file.filename}`; 
+  const cvPath = `/uploads/cvs/${req?.file.filename}`;
   // const portfolioPath = portfolio
   //   ? `/uploads/portfolio/${portfolio.filename}`
   //   : null;
   const portfolioPath = portfolio || null;
 
 
-  const newApplication = await JobApplicationModal.create({
-    job: id,
-    Jobtitle: job?.title,
-    talent: req.user.userId,
-    coverLetter: coverLetter || "",
-    cv: cvPath || "",
-    portfolio: portfolioPath,
-    linkedInProfile: linkedInProfile || "",
-    skills: skills || [],
-    experienceLevel: experienceLevel || "beginner",
-    availability: availability || "",
-    locationPreferences: locationPreferences || "",
-    references: references || [],
-  });
+  const session = await mongoose.startSession();
+  let newApplication;
 
-  await JobModal.findByIdAndUpdate(id, {
-    $push: {
-      applicants: {
-        talent: req.user.userId,
-        job: id,
-        resume: cvPath || "",
-        status: "pending",
-        appliedAt: new Date(),
-      },
-    },
-  });
+  try {
+    await session.withTransaction(async () => {
+      const createdApplications = await JobApplicationModal.create(
+        [
+          {
+            job: id,
+            Jobtitle: job?.title,
+            talent: req.user.userId,
+            coverLetter: coverLetter || "",
+            cv: cvPath || "",
+            portfolio: portfolioPath,
+            linkedInProfile: linkedInProfile || "",
+            skills: skills || [],
+            experienceLevel: experienceLevel || "beginner",
+            availability: availability || "",
+            locationPreferences: locationPreferences || "",
+            references: references || [],
+          },
+        ],
+        { session }
+      );
+
+      newApplication = createdApplications[0];
+
+      await JobModal.findByIdAndUpdate(
+        id,
+        {
+          $push: {
+            applicants: {
+              talent: req.user.userId,
+              job: id,
+              resume: cvPath || "",
+              status: "pending",
+              appliedAt: new Date(),
+            },
+          },
+        },
+        { session }
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
+
   res.status(StatusCodes.CREATED).json({
     msg: "Successfully applied for the job",
     application: newApplication,
@@ -686,7 +708,7 @@ export const myApplications = async (req, res) => {
   );
   res.status(StatusCodes.OK).json({
     success: true,
-    appliedJobs:appliedJobs?.length,
+    appliedJobs: appliedJobs?.length,
     applications: appliedJobs.map((app) => ({
       applicationId: app._id,
       status: app.status,
@@ -748,4 +770,134 @@ export const closeJob = async (req, res) => {
   job.isClosed = true;
   await job.save();
   res.status(StatusCodes.OK).json({ msg: "Job closed for applications" });
+};
+
+/**
+ * @swagger
+ * /api/v1/jobs/search:
+ *   get:
+ *     summary: Browse and search open jobs (talent-facing)
+ *     tags: [Jobs]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for job title, position, or company
+ *         example: backend developer
+ *       - in: query
+ *         name: jobType
+ *         schema:
+ *           type: string
+ *           enum: [full-time, part-time, internship, all]
+ *         description: Filter by job type
+ *         example: full-time
+ *       - in: query
+ *         name: country
+ *         schema:
+ *           type: string
+ *         description: Filter by country
+ *         example: United States
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           enum: [newest, oldest, a-z, z-a]
+ *         description: Sort order
+ *         example: newest
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Page number
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Jobs per page
+ *         example: 10
+ *     responses:
+ *       200:
+ *         description: Jobs retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalJobs:
+ *                   type: integer
+ *                   example: 42
+ *                 numOfPages:
+ *                   type: integer
+ *                   example: 5
+ *                 currentPage:
+ *                   type: integer
+ *                   example: 1
+ *                 jobs:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Job'
+ */
+export const searchJobs = async (req, res) => {
+  const { search, jobType, country, sort } = req.query;
+
+  const queryObject = {
+    isClosed: false,
+  };
+
+  // Exclude jobs whose deadline has passed
+  queryObject.$or = [
+    { applicationDeadline: null },
+    { applicationDeadline: { $gt: new Date() } },
+  ];
+
+  if (search) {
+    queryObject.$and = [
+      {
+        $or: [
+          { title: { $regex: search, $options: 'i' } },
+          { position: { $regex: search, $options: 'i' } },
+          { company: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+        ],
+      },
+    ];
+  }
+
+  if (jobType && jobType !== 'all') {
+    queryObject.jobType = jobType;
+  }
+
+  if (country) {
+    queryObject['jobLocation.country'] = { $regex: country, $options: 'i' };
+  }
+
+  const sortOptions = {
+    newest: '-createdAt',
+    oldest: 'createdAt',
+    'a-z': 'title',
+    'z-a': '-title',
+  };
+  const sortKey = sortOptions[sort] || sortOptions.newest;
+
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  const jobs = await JobModal.find(queryObject)
+    .select('-applicants')
+    .sort(sortKey)
+    .skip(skip)
+    .limit(limit);
+
+  const totalJobs = await JobModal.countDocuments(queryObject);
+  const numOfPages = Math.ceil(totalJobs / limit);
+
+  res.status(StatusCodes.OK).json({ totalJobs, numOfPages, currentPage: page, jobs });
 };

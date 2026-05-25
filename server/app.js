@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 dotenv.config();
 import morgan from "morgan";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import connectDB from "./db/connect.js";
 import notFoundMiddleware from "./middlewares/not-found.js";
 import errorHandlerMiddleware from "./middlewares/error-handler.js";
@@ -20,6 +22,11 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser(process.env.JWT_SECRET));
 app.use(morgan("tiny"));
+
+// Serve uploaded files (CVs, etc.)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // CORS configuration
 app.use(cors({

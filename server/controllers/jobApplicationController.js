@@ -60,7 +60,7 @@ export const getJobApplications = async (req, res) => {
       },
     });
   if (!jobApplicants || jobApplicants.length === 0) {
-    return res.status(404).json({ error: "No job applications found." });
+    return res.status(StatusCodes.OK).json({ msg: [] });
   }
   const job = jobApplicants[0].job;
 
@@ -157,6 +157,9 @@ export const updateApplicationStatus = async (req, res) => {
     throw new NotFoundError("Job application not found");
   }
   const job = await JobModal.findById(jobId).populate("createdBy");
+  if (!job) {
+    throw new NotFoundError("Job not found");
+  }
   checkPermissions(req.user, job.createdBy._id);
 
   application.status = status;
@@ -209,6 +212,9 @@ export const updateApplicationStatus = async (req, res) => {
 export const withdrawApplication = async (req, res) => {
   const { id: applicationId } = req.params;
   const application = await JobApplicationModal.findById(applicationId);
+  if (!application) {
+    throw new NotFoundError("Job application not found");
+  }
 
   checkPermissions(req.user, application.talent);
   if (!ALLOWED_WITHDRAW_STATUSES.includes(application.status)) {

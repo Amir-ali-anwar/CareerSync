@@ -9,6 +9,9 @@ import crypto from "crypto";
 import User from "../models/User.js";
 import Token from "../models/Token.js";
 
+const getTrustedFrontendOrigin = () =>
+  process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:3000";
+
 /**
  * @swagger
  * /api/v1/auth/register:
@@ -182,7 +185,7 @@ const register = async (req, res) => {
   //   verificationToken,
   // });
 
-  const origin = req.get("origin") || "http://localhost:3000";
+  const origin = getTrustedFrontendOrigin();
 
   await sendVerificationEmail({
     name: user.name,
@@ -355,7 +358,12 @@ const updateUser = async (req, res, next) => {
   await user.save();
 
   const tokenUser = createTokenUser(user);
-  attachCookiesToResponse({ res, user: tokenUser });
+  const existingToken = await Token.findOne({ user: user._id });
+  attachCookiesToResponse({
+    res,
+    user: tokenUser,
+    refreshToken: existingToken?.refreshToken,
+  });
   res.status(StatusCodes.OK).json({ user: tokenUser });
 };
 
@@ -529,7 +537,7 @@ const resendVerificationToken = async (req, res) => {
 
   await user.save({ validateBeforeSave: false });
 
-  const origin = req.get("origin") || "http://localhost:3000";
+  const origin = getTrustedFrontendOrigin();
   await sendVerificationEmail({
     name: user.name,
     email: user.email,
