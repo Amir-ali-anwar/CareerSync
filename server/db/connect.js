@@ -5,7 +5,7 @@ const connectDB = async (url) => {
     console.error('MongoDB connection URL is not provided');
     process.exit(1);
   }
-  
+
   try {
     mongoose.set('strictQuery', false);
     await mongoose.connect(url);
