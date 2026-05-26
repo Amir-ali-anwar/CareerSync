@@ -1,11 +1,15 @@
-import mongoose from 'mongoose';
-import { JOB_STATUS, JOB_TYPE } from '../utils/constants.js';
+import mongoose from "mongoose";
+import { JOB_STATUS, JOB_TYPE } from "../utils/constants.js";
 
 const JobSchema = new mongoose.Schema(
   {
     company: {
       type: String,
       required: true,
+      trim: true,
+    },
+    title: {
+      type: String,
       trim: true,
     },
     position: {
@@ -24,33 +28,50 @@ const JobSchema = new mongoose.Schema(
       default: JOB_TYPE.FULL_TIME,
     },
     jobLocation: {
-      type: String,
-      default: '',
+      type: {
+        country: String,
+        city: String,
+      },
+      default: { country: "", city: "" },
     },
-
-    // The employer who created this job
+    description: {
+      type: String,
+      trim: true,
+    },
+    applicationDeadline: {
+      type: Date,
+      default: null,
+    },
+    isClosed: {
+      type: Boolean,
+      default: false,
+    },
     createdBy: {
       type: mongoose.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
 
-    // Track talent who applied
     applicants: [
       {
         talent: {
           type: mongoose.Types.ObjectId,
-          ref: 'User',
+          ref: "User",
+        },
+        job: {
+          type: mongoose.Types.ObjectId,
+          ref: "Job",
         },
         status: {
           type: String,
-          enum: ['pending', 'shortlisted', 'rejected'],
-          default: 'pending',
+          enum: ["pending", "shortlisted", "rejected"],
+          default: "pending",
         },
         appliedAt: {
           type: Date,
           default: Date.now,
         },
+        resume: { type: String },
       },
     ],
   },
@@ -59,4 +80,4 @@ const JobSchema = new mongoose.Schema(
   }
 );
 
-export default mongoose.model('Job', JobSchema);
+export default mongoose.model("Job", JobSchema);
