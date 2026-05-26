@@ -21,6 +21,7 @@ const sendVerificationEmail = async ({ name, email, verificationToken, origin })
     console.log('Verification email sent');
   } catch (error) {
     console.error('Error sending email:', error);
+    throw error;
   }
 };
 

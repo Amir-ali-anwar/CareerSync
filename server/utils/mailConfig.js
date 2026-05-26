@@ -1,8 +1,8 @@
 export default {
-  host: 'smtp.ethereal.email',
-  port: 587,
+  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+  port: Number(process.env.SMTP_PORT || 587),
   auth: {
-      user: 'brown.lockman@ethereal.email',
-      pass: 'cn6THmRbDu8Qu6Q4MH'
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
   }
 };

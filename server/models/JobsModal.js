@@ -34,6 +34,10 @@ const JobSchema = new mongoose.Schema(
       },
       default: { country: "", city: "" },
     },
+    description: {
+      type: String,
+      trim: true,
+    },
     applicationDeadline: {
       type: Date,
       default: null,
