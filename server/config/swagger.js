@@ -176,6 +176,43 @@ const options = {
               description: 'Whether job is closed for applications',
               example: false,
             },
+            requiredSkills: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Skills required for this role (used for matching)',
+              example: ['React', 'TypeScript', 'Node.js'],
+            },
+            preferredSkills: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Nice-to-have skills for this role (used for matching)',
+              example: ['AWS', 'Docker'],
+            },
+            requiredExperience: {
+              type: 'number',
+              description: 'Years of professional experience expected',
+              example: 5,
+            },
+            workMode: {
+              type: 'string',
+              enum: ['remote', 'hybrid', 'onsite'],
+              description: 'Work arrangement for this role',
+              example: 'remote',
+            },
+            salaryRange: {
+              type: 'object',
+              properties: {
+                min: { type: 'number', example: 90000 },
+                max: { type: 'number', example: 130000 },
+                currency: { type: 'string', example: 'USD' },
+              },
+            },
+            intelligenceProcessingStatus: {
+              type: 'string',
+              enum: ['pending', 'processing', 'completed', 'failed'],
+              description: 'Status of the background AI job-intelligence pipeline (skill/seniority extraction from the description) for this job',
+              example: 'pending',
+            },
             createdBy: {
               type: 'string',
               description: 'ID of the user who created the job',
@@ -426,6 +463,12 @@ const options = {
               type: 'string',
               enum: ['pending', 'under review', 'shortlisted', 'interview', 'rejected'],
               description: 'Application status',
+              example: 'pending',
+            },
+            resumeProcessingStatus: {
+              type: 'string',
+              enum: ['pending', 'processing', 'completed', 'failed'],
+              description: 'Status of the background AI resume-processing pipeline for this CV (not the recruiter-facing application status above)',
               example: 'pending',
             },
             Jobtitle: {

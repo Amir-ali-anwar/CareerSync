@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { AI_PROCESSING_STATUS } from "../utils/constants.js";
 
 const JobApplicationSchema = new mongoose.Schema(
   {
@@ -52,6 +53,21 @@ const JobApplicationSchema = new mongoose.Schema(
     appliedAt: {
       type: Date,
       default: Date.now,
+    },
+
+    // Tracks the AI resume-processing pipeline for THIS submission's CV (see
+    // services/resume/resumeProcessingService.js). Kept separate from `status` (the
+    // recruiter-facing application status) - this is purely about whether the candidate
+    // intelligence extraction succeeded, not whether the employer has reviewed anything.
+    resumeProcessingStatus: {
+      type: String,
+      enum: Object.values(AI_PROCESSING_STATUS),
+      default: AI_PROCESSING_STATUS.PENDING,
+    },
+    // Set only when resumeProcessingStatus is "failed" - a short, non-sensitive reason
+    // (never the CV contents or extracted text) for support/debugging purposes.
+    resumeProcessingError: {
+      type: String,
     },
   },
   { timestamps: true }

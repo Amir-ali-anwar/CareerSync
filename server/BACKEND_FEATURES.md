@@ -275,6 +275,8 @@ server/
 │   ├── JobsModel.js
 │   ├── JobApplicationModel.js
 │   ├── OrganizationModel.js
+│   ├── CandidateProfileModel.js
+│   ├── JobProfileModel.js
 │   └── Token.js
 ├── routes/
 │   ├── authRoutes.js
@@ -282,13 +284,38 @@ server/
 │   ├── jobApplicationRoutes.js
 │   ├── talentRoutes.js
 │   └── OrganizationRoutes.js
-└── utils/
-    ├── constants.js
-    ├── createTokenUser.js
-    ├── embedding.js
-    ├── jwt.js
-    ├── mailConfig.js
-    └── sendVerificationEmail.js
+├── utils/
+│   ├── constants.js
+│   ├── createTokenUser.js
+│   ├── jwt.js
+│   ├── mailConfig.js
+│   ├── normalization.js       # shared skill-alias/title normalization
+│   ├── cvStorage.js
+│   └── sendVerificationEmail.js
+└── services/
+    ├── ai/
+    │   ├── aiService.js         # timeout/retry/logging wrapper - the only entry point
+    │   ├── index.js             # selects a provider based on OPENAI_API_KEY presence
+    │   └── providers/
+    │       ├── fakeProvider.js  # deterministic, no external dependency (default)
+    │       └── openAiProvider.js
+    ├── resume/
+    │   ├── textExtraction.js         # real PDF extraction via pdf-parse
+    │   └── resumeProcessingService.js
+    ├── job/
+    │   └── jobIntelligenceService.js
+    └── matching/
+        ├── algorithmVersions.js      # single source of truth for weights/version
+        ├── scoreAggregator.js
+        ├── matchingService.js        # pure calculateMatch() + DB-aware wrappers
+        └── matchers/
+            ├── requiredSkillsMatcher.js
+            ├── preferredSkillsMatcher.js
+            ├── experienceMatcher.js
+            ├── seniorityMatcher.js
+            ├── domainMatcher.js
+            ├── preferenceMatcher.js
+            └── semanticMatcher.js    # stub - Module F's extension point
 ```
 
 ---
@@ -311,25 +338,97 @@ SMTP_HOST=
 SMTP_PORT=
 SMTP_USER=
 SMTP_PASS=
+CV_STORAGE_PROVIDER=local
+OPENAI_API_KEY=
+AI_REQUEST_TIMEOUT_MS=15000
+AI_MAX_RETRIES=1
 ```
 
 ---
+
+## 🤖 AI Service Layer — Abstraction Built, Real Provider Unverified
+
+`services/ai/` (`AIService`) is the single boundary every AI-shaped operation goes
+through: `generateEmbedding`, `extractResumeProfile`, `explainMatch`,
+`analyzeSkillGap`. It handles timeouts, bounded retries, and structured observability
+logging (never logging prompts or resume content).
+
+**Without `OPENAI_API_KEY` set** (the current state of every environment this has run
+in, including production's `.env`), it runs entirely against a deterministic,
+dependency-free fake provider - real model output does not exist yet. **With a key
+set**, it switches to a real OpenAI-backed provider with zero code changes elsewhere -
+but that provider has not been exercised against a live API in this environment and
+needs a smoke test before being trusted.
+
+## 📄 Resume Processing Pipeline — Built, Runs on the Fake Provider
+
+Submitting a job application now triggers, fire-and-forget: CV → text extraction
+(`services/resume/textExtraction.js`, real PDF parsing via `pdf-parse`; `.doc`/`.docx`
+are a documented, not-yet-implemented gap) → `AIService.extractResumeProfile` →
+`CandidateProfile` persisted (one profile per user, overwritten and version-bumped on
+each new resume, never duplicated). `JobApplication.resumeProcessingStatus`
+(`pending`/`processing`/`completed`/`failed`) reports the outcome.
+
+**This is real, working, tested infrastructure - but the extracted candidate data is
+only as good as the active AI provider**, which is the fake one until `OPENAI_API_KEY`
+is set. No HTTP endpoint reads `CandidateProfile` or extracted resume text yet.
+
+## 🏢 Job Intelligence Pipeline — Built, Runs on the Fake Provider
+
+Creating a job (and updating one's `description`) triggers, fire-and-forget:
+`Job.title` + `description` → `AIService.extractJobProfile` → `JobProfileModel`
+persisted (one profile per job, overwritten and version-bumped on reprocessing, never
+duplicated). `Job.intelligenceProcessingStatus`
+(`pending`/`processing`/`completed`/`failed`) reports the outcome; a client cannot set
+this field directly (stripped from update payloads, same protection as `createdBy`).
+
+Deliberately does **not** duplicate `Job`'s own reliable employer-entered fields
+(`jobLocation`, `workMode`, `jobType`, `salaryRange`) - `JobProfile` only holds signal
+AI-inferred from free-text `description`: normalized/aliased skills (shared alias table
+with the resume pipeline, `utils/normalization.js`), inferred seniority, domains, and a
+short responsibilities summary. Updating a job's description resets processing to
+"pending" and reprocesses - a stale `JobProfile` is never silently treated as current.
+
+Same caveat as the resume pipeline: real quality depends on `OPENAI_API_KEY` being set.
+No standalone endpoint reads `JobProfile` directly, but the matching engine below reads
+it internally.
+
+## 🎯 Hybrid Job Matching Engine — Deterministic, No AI Calls
+
+`services/matching/` computes a 0–100 match score between a candidate and a job from
+structured data only - **no LLM, no embeddings, no external API call anywhere in this
+module**. Seven independent matchers (required skills, preferred skills, experience,
+seniority, domain, location/work-mode preference, and a semantic stub reserved for a
+future phase) each score their own dimension; a weighted aggregator combines them,
+excluding (not penalizing) any dimension with no data to judge. Every result is stamped
+with `matchingAlgorithmVersion`, `candidateProfileVersion`, and `jobProfileVersion` so a
+score is always traceable to the exact profiles and algorithm that produced it.
+
+- `GET /api/v1/jobs/:jobId/match` — the authenticated talent's own match against a job.
+  Always uses the caller's session identity; never accepts a candidate id, so there is
+  no IDOR surface by construction.
+- `GET /api/v1/applications/job/:jobId` (existing employer endpoint) now annotates each
+  applicant with their `match` object.
+- Computed on demand, not persisted — see `TASKS.md` for the reasoning. A missing or
+  still-processing `CandidateProfile`/`JobProfile` never errors; it's reported via
+  `candidateProfileStatus`/`jobProfileStatus` alongside a best-effort score.
 
 ## 🔮 Roadmap — Planned, NOT Yet Implemented
 
 The following are intentionally **not** built yet. They are listed here so the docs
 never imply more than the codebase actually does:
 
-- **AI-powered job matching** (candidate ↔ job similarity scoring)
-- **Semantic search** (natural-language job/candidate search via embeddings)
+- **Semantic search / embeddings-based matching** — `services/matching/matchers/semanticMatcher.js` is a prepared stub, not an implementation
 - **Skill-gap analysis / recommendations**
-- **Resume/CV analysis** (quality scoring, parsing, ATS compatibility)
+- **"Why you match" LLM explanations** (the matching engine already produces the structured evidence this would read from)
+- **Vector search** — no vector database or index is provisioned anywhere
+- **Notifications, messaging, organization analytics**
 
-`utils/embedding.js` contains a single OpenAI embedding-generation helper - an initial
-scaffold with no caller anywhere in the codebase yet. It is intentionally kept in place
-for the next development phase (AI job matching → embeddings → vector search →
-semantic search → recommendations) rather than removed, but it does not currently power
-any feature. Do not treat its presence as evidence that AI matching/search exists today.
+`models/JobsModel.js`, `models/JobProfileModel.js`, and `models/CandidateProfileModel.js`
+now carry the structured fields this future matching work will read from, and
+`services/ai/` provides the (currently fake-backed) provider abstraction it will call -
+but no matching/search/recommendation logic exists yet. Do not treat either as evidence
+that AI matching/search exists today.
 
 Also not implemented: real-time messaging, a notification system beyond transactional
 verification email, an analytics dashboard, and monetization/subscriptions. All of these

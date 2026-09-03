@@ -48,6 +48,43 @@ describe("Job Posting / Management / Discovery", () => {
       expect(res.statusCode).toBe(201);
       expect(res.body.job.createdBy).toBe(String(user._id));
     });
+
+    it("remains backward compatible: a job with none of the AI-matching fields is still valid", async () => {
+      const { agent } = await createEmployerAgent();
+      const res = await agent.post("/api/v1/jobs").send(validJobPayload());
+      expect(res.statusCode).toBe(201);
+      expect(res.body.job.requiredSkills).toEqual([]);
+      expect(res.body.job.preferredSkills).toEqual([]);
+      expect(res.body.job.requiredExperience).toBeUndefined();
+      expect(res.body.job.workMode).toBeUndefined();
+    });
+
+    it("accepts and persists the structured AI-matching fields when provided", async () => {
+      const { agent } = await createEmployerAgent();
+      const res = await agent.post("/api/v1/jobs").send(
+        validJobPayload({
+          requiredSkills: ["React", "TypeScript", "Node.js"],
+          preferredSkills: ["AWS", "Docker"],
+          requiredExperience: 5,
+          workMode: "remote",
+          salaryRange: { min: 90000, max: 130000, currency: "USD" },
+        })
+      );
+      expect(res.statusCode).toBe(201);
+      expect(res.body.job.requiredSkills).toEqual(["React", "TypeScript", "Node.js"]);
+      expect(res.body.job.preferredSkills).toEqual(["AWS", "Docker"]);
+      expect(res.body.job.requiredExperience).toBe(5);
+      expect(res.body.job.workMode).toBe("remote");
+      expect(res.body.job.salaryRange).toMatchObject({ min: 90000, max: 130000, currency: "USD" });
+    });
+
+    it("rejects an invalid workMode value", async () => {
+      const { agent } = await createEmployerAgent();
+      const res = await agent
+        .post("/api/v1/jobs")
+        .send(validJobPayload({ workMode: "from-the-moon" }));
+      expect(res.statusCode).toBe(400);
+    });
   });
 
   describe("GET /api/v1/jobs (list, employer-scoped)", () => {
@@ -226,6 +263,99 @@ describe("Job Posting / Management / Discovery", () => {
       const res = await talent.get("/api/v1/jobs/search").query({ search: "(Node.js)" });
       expect(res.statusCode).toBe(200);
       expect(res.body.jobs.some((j) => j.title.includes("(Node.js)"))).toBe(true);
+    });
+  });
+
+  describe("Job intelligence pipeline (end-to-end through the real HTTP endpoints)", () => {
+    // Job intelligence processing is fire-and-forget, same as resume processing - poll
+    // the job's own status field instead of a fixed sleep.
+    const waitForJobIntelligence = async (jobId, { timeoutMs = 3000, intervalMs = 50 } = {}) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const job = await JobModal.findById(jobId);
+        if (job.intelligenceProcessingStatus !== "pending" && job.intelligenceProcessingStatus !== "processing") {
+          return job;
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      }
+      throw new Error("Timed out waiting for job intelligence processing to finish");
+    };
+
+    it("processes a newly created job's description into a JobProfile", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const res = await employer.post("/api/v1/jobs").send(
+        validJobPayload({
+          title: "Senior Software Engineer",
+          description:
+            "Build and maintain APIs using React, Node.js, and AWS. 5+ years of experience required.",
+        })
+      );
+      expect(res.statusCode).toBe(201);
+      expect(res.body.job.intelligenceProcessingStatus).toBe("pending");
+
+      const finishedJob = await waitForJobIntelligence(res.body.job._id);
+      expect(finishedJob.intelligenceProcessingStatus).toBe("completed");
+
+      const JobProfileModal = (await import("../models/JobProfileModel.js")).default;
+      const profile = await JobProfileModal.findOne({ job: res.body.job._id });
+      expect(profile).not.toBeNull();
+      expect(profile.normalizedTitle).toBe("software engineer");
+      expect(profile.seniority).toBe("senior");
+      expect(profile.skills).toEqual(expect.arrayContaining(["React", "Node.js", "AWS"]));
+      expect(profile.profileVersion).toBe(1);
+    });
+
+    it("reprocesses (new version) when a job's description is updated", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer, {
+        description: "Build APIs using React and Node.js. 3 years of experience required.",
+      });
+      await waitForJobIntelligence(job._id);
+
+      const updateRes = await employer.patch(`/api/v1/jobs/${job._id}`).send({
+        description: "Data science role requiring Python and SQL. 8 years of experience required.",
+      });
+      expect(updateRes.statusCode).toBe(200);
+      expect(updateRes.body.job.intelligenceProcessingStatus).toBe("pending");
+
+      const finishedJob = await waitForJobIntelligence(job._id);
+      expect(finishedJob.intelligenceProcessingStatus).toBe("completed");
+
+      const JobProfileModal = (await import("../models/JobProfileModel.js")).default;
+      const profiles = await JobProfileModal.find({ job: job._id });
+      expect(profiles).toHaveLength(1); // overwritten, not forked
+      expect(profiles[0].skills).toEqual(expect.arrayContaining(["Python", "SQL"]));
+      expect(profiles[0].profileVersion).toBe(2);
+    });
+
+    it("does not trigger reprocessing for an update that doesn't touch the description", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer);
+      await waitForJobIntelligence(job._id);
+
+      const JobProfileModal = (await import("../models/JobProfileModel.js")).default;
+      const profileBefore = await JobProfileModal.findOne({ job: job._id });
+
+      const updateRes = await employer.patch(`/api/v1/jobs/${job._id}`).send({ title: "Updated Title Only" });
+      expect(updateRes.statusCode).toBe(200);
+      // Status stays "completed" - never reset to pending since description wasn't touched.
+      expect(updateRes.body.job.intelligenceProcessingStatus).toBe("completed");
+
+      const profileAfter = await JobProfileModal.findOne({ job: job._id });
+      expect(profileAfter.profileVersion).toBe(profileBefore.profileVersion);
+    });
+
+    it("cannot be manipulated by a client sending intelligenceProcessingStatus directly", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer);
+      await waitForJobIntelligence(job._id);
+
+      const res = await employer
+        .patch(`/api/v1/jobs/${job._id}`)
+        .send({ intelligenceProcessingStatus: "failed", intelligenceProcessingError: "hacked" });
+      expect(res.statusCode).toBe(200);
+      // The client-supplied value is silently dropped, not applied - status is untouched.
+      expect(res.body.job.intelligenceProcessingStatus).toBe("completed");
     });
   });
 });

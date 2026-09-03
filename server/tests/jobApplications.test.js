@@ -324,4 +324,60 @@ describe("Job Application Management", () => {
       expect(res.statusCode).toBe(404);
     });
   });
+
+  describe("Resume processing pipeline (end-to-end through the real HTTP endpoint)", () => {
+    // Resume processing is fire-and-forget (see jobController.js's applyForJob), so the
+    // HTTP response returns before it finishes. Poll the application's own status field
+    // instead of a fixed sleep, keeping the test both deterministic and fast.
+    const waitForResumeProcessing = async (applicationId, { timeoutMs = 3000, intervalMs = 50 } = {}) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const application = await JobApplicationModal.findById(applicationId);
+        if (application.resumeProcessingStatus !== "pending" && application.resumeProcessingStatus !== "processing") {
+          return application;
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      }
+      throw new Error("Timed out waiting for resume processing to finish");
+    };
+
+    it("processes a real PDF CV end-to-end into a CandidateProfile", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer);
+      const { agent: talent, user: talentUser } = await createTalentAgent();
+
+      const realPdfBuffer = fs.readFileSync(path.join(process.cwd(), "tests", "fixtures", "valid-sample.pdf"));
+      const applyRes = await talent
+        .post(`/api/v1/jobs/applyForJob/${job._id}`)
+        .attach("cv", realPdfBuffer, { filename: "resume.pdf", contentType: "application/pdf" });
+
+      expect(applyRes.statusCode).toBe(201);
+      expect(applyRes.body.application.resumeProcessingStatus).toBe("pending");
+
+      const finished = await waitForResumeProcessing(applyRes.body.application._id);
+      expect(finished.resumeProcessingStatus).toBe("completed");
+
+      const CandidateProfileModal = (await import("../models/CandidateProfileModel.js")).default;
+      const profile = await CandidateProfileModal.findOne({ user: talentUser._id });
+      expect(profile).not.toBeNull();
+      expect(profile.processingStatus).toBe("completed");
+      expect(profile.profileVersion).toBe(1);
+    });
+
+    it("marks resumeProcessingStatus as failed (never crashes the application flow) for an unparseable CV", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer);
+      const { agent: talent } = await createTalentAgent();
+
+      // The existing fake-PDF fixture used throughout this file is a valid upload (real
+      // PDF header, passes multer's validation) but isn't real PDF content pdf-parse can
+      // read - exactly the "extraction fails after upload succeeds" scenario.
+      const applyRes = await applyForJob(talent, job._id);
+      expect(applyRes.statusCode).toBe(201);
+
+      const finished = await waitForResumeProcessing(applyRes.body.application._id);
+      expect(finished.resumeProcessingStatus).toBe("failed");
+      expect(finished.resumeProcessingError).toMatch(/text_extraction_failed/);
+    });
+  });
 });

@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { JOB_STATUS, JOB_TYPE } from "../utils/constants.js";
+import { JOB_STATUS, JOB_TYPE, WORK_MODE, AI_PROCESSING_STATUS } from "../utils/constants.js";
 
 const JobSchema = new mongoose.Schema(
   {
@@ -50,6 +50,48 @@ const JobSchema = new mongoose.Schema(
       type: mongoose.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+
+    // --- Structured fields for AI matching (all optional - existing jobs created
+    // before these fields existed remain fully valid with no data migration needed).
+    // Free-text detail continues to live in `description`; these are only the
+    // normalized signals the future matching engine (skill/experience/work-mode
+    // scoring) needs to compare directly against a CandidateProfile, without having
+    // to parse `description` on every match.
+    requiredSkills: {
+      type: [String],
+      default: [],
+    },
+    preferredSkills: {
+      type: [String],
+      default: [],
+    },
+    // Years of professional experience expected for this role (not a 0-5 "level" enum).
+    requiredExperience: {
+      type: Number,
+      min: 0,
+    },
+    workMode: {
+      type: String,
+      enum: Object.values(WORK_MODE),
+    },
+    salaryRange: {
+      min: { type: Number, min: 0 },
+      max: { type: Number, min: 0 },
+      currency: { type: String, default: "USD" },
+    },
+
+    // Claim/idempotency guard for services/job/jobIntelligenceService.js - mirrors
+    // JobApplication.resumeProcessingStatus's pattern exactly. Reset to "pending"
+    // whenever an update includes a new `description`, so a stale JobProfile is
+    // reliably reprocessed rather than silently treated as current.
+    intelligenceProcessingStatus: {
+      type: String,
+      enum: Object.values(AI_PROCESSING_STATUS),
+      default: AI_PROCESSING_STATUS.PENDING,
+    },
+    intelligenceProcessingError: {
+      type: String,
     },
   },
   {

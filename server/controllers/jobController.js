@@ -4,6 +4,8 @@ import JobApplicationModal from '../models/JobApplicationModel.js'
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
+import { triggerResumeProcessing } from "../services/resume/resumeProcessingService.js";
+import { triggerJobIntelligenceProcessing } from "../services/job/jobIntelligenceService.js";
 
 // Standalone MongoDB deployments (local dev, mongodb-memory-server's default single-node
 // mode) reject multi-document transactions outright; only a replica set/mongos (which
@@ -119,6 +121,11 @@ export const createJob = async (req, res) => {
   }
   req.body.createdBy = req.user.userId;
   const job = await JobModal.create(req.body);
+
+  // Fire-and-forget, same pattern as resume processing on job applications - the HTTP
+  // response never waits on an AI call.
+  triggerJobIntelligenceProcessing(job._id);
+
   res.status(StatusCodes.CREATED).json({ job });
 };
 
@@ -464,9 +471,12 @@ export const getJob = async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 export const updateJob = async (req, res) => {
-  // sanitize
+  // sanitize - intelligenceProcessingStatus/Error are internal-only (set by
+  // jobIntelligenceService), never client-settable, same reasoning as createdBy/_id.
   delete req.body.createdBy;
   delete req.body._id;
+  delete req.body.intelligenceProcessingStatus;
+  delete req.body.intelligenceProcessingError;
 
   if (req.body.jobLocation && (!req.body.jobLocation.country || !req.body.jobLocation.city)) {
     throw new BadRequestError("Job location must include country and city");
@@ -478,12 +488,24 @@ export const updateJob = async (req, res) => {
     }
   }
 
+  // A changed description makes the existing JobProfile stale - reset the claim status
+  // so jobIntelligenceService can reclaim and reprocess it (see that file's staleness
+  // handling). Unrelated updates (e.g. just closing the job) don't trigger reprocessing.
+  const descriptionChanged = typeof req.body.description === "string";
+  if (descriptionChanged) {
+    req.body.intelligenceProcessingStatus = "pending";
+  }
+
   const job = await JobModal.findOneAndUpdate(
     { _id: req.params.id, createdBy: req.user.userId },
     req.body,
     { new: true, runValidators: true }
   );
   if (!job) throw new NotFoundError("Job not found or permission denied");
+
+  if (descriptionChanged) {
+    triggerJobIntelligenceProcessing(job._id);
+  }
 
   res.status(StatusCodes.OK).json({ msg: "Job updated successfully", job });
 };
@@ -658,6 +680,13 @@ export const applyForJob = async (req, res) => {
     }
     throw error;
   }
+
+  // Fire-and-forget: CV text extraction + the AI call must never block this response
+  // (same pattern as verification emails - see authController.js's
+  // dispatchVerificationEmail). newApplication.resumeProcessingStatus is "pending" here;
+  // it transitions to processing/completed/failed asynchronously and is visible on
+  // subsequent reads of the application (e.g. GET /api/v1/applications/my).
+  triggerResumeProcessing(newApplication._id);
 
   res.status(StatusCodes.CREATED).json({
     msg: "Successfully applied for the job",

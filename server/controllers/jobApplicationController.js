@@ -1,9 +1,11 @@
 import JobModal from "../models/JobsModel.js";
 import JobApplicationModal from "../models/JobApplicationModel.js";
+import JobProfileModal from "../models/JobProfileModel.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError, ForbiddenError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
 import { cvExists, streamCv } from "../utils/cvStorage.js";
+import { calculateMatchesForCandidates } from "../services/matching/matchingService.js";
 const VALID_STATUSES = ['pending', 'under review', 'shortlisted', 'interview', 'rejected'];
 const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
 
@@ -11,7 +13,12 @@ const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
  * @swagger
  * /api/v1/applications/job/{jobId}:
  *   get:
- *     summary: Get job applications for a specific job
+ *     summary: Get job applications for a specific job, each annotated with a match score
+ *     description: >
+ *       Each application includes a `match` object (see GET /jobs/{jobId}/match for the
+ *       full shape) computed against the requesting employer's own job - this reuses
+ *       that endpoint's authorization (checkPermissions on job ownership) rather than
+ *       exposing a separate route.
  *     tags: [Job Applications]
  *     security:
  *       - cookieAuth: []
@@ -34,7 +41,13 @@ const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
  *                 applications:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/JobApplication'
+ *                     allOf:
+ *                       - $ref: '#/components/schemas/JobApplication'
+ *                       - type: object
+ *                         properties:
+ *                           match:
+ *                             type: object
+ *                             description: This applicant's match score against the job (see GET /jobs/{jobId}/match)
  *       401:
  *         description: Unauthorized - invalid token or insufficient permissions
  *         content:
@@ -68,7 +81,19 @@ export const getJobApplications = async (req, res) => {
     "name email phone profileImage"
   );
 
-  res.status(StatusCodes.OK).json({ applications: jobApplicants });
+  // Annotate each applicant with their match score against this job - reuses this
+  // already-authorized (checkPermissions above) endpoint rather than adding a new
+  // route, and fetches every candidate's profile in one query (no N+1).
+  const jobProfile = await JobProfileModal.findOne({ job: jobId });
+  const talentIds = jobApplicants.map((application) => application.talent._id);
+  const matchesByTalentId = await calculateMatchesForCandidates(talentIds, job, jobProfile);
+
+  const applicationsWithMatch = jobApplicants.map((application) => ({
+    ...application.toObject(),
+    match: matchesByTalentId[String(application.talent._id)],
+  }));
+
+  res.status(StatusCodes.OK).json({ applications: applicationsWithMatch });
 };
 
 /**
