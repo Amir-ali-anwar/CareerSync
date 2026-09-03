@@ -1,14 +1,15 @@
-import JobModal from "../models/JobsModal.js";
-import JobApplicationModal from "../models/JobApplicationModal.js";
+import JobModal from "../models/JobsModel.js";
+import JobApplicationModal from "../models/JobApplicationModel.js";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError, NotFoundError } from "../errors/index.js";
+import { BadRequestError, NotFoundError, ForbiddenError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
+import { cvExists, streamCv } from "../utils/cvStorage.js";
 const VALID_STATUSES = ['pending', 'under review', 'shortlisted', 'interview', 'rejected'];
 const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
 
 /**
  * @swagger
- * /api/v1/applications/{jobId}:
+ * /api/v1/applications/job/{jobId}:
  *   get:
  *     summary: Get job applications for a specific job
  *     tags: [Job Applications]
@@ -30,7 +31,7 @@ const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
  *             schema:
  *               type: object
  *               properties:
- *                 msg:
+ *                 applications:
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/JobApplication'
@@ -40,8 +41,14 @@ const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - not the owner of this job
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
- *         description: No job applications found
+ *         description: Job not found
  *         content:
  *           application/json:
  *             schema:
@@ -49,27 +56,19 @@ const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
  */
 export const getJobApplications = async (req, res) => {
   const { jobId } = req.params;
-  const jobApplicants = await JobApplicationModal.find({ job: jobId })
-    .populate("talent")
-    .populate({
-      path: "job",
-      populate: {
-        path: "createdBy",
-        model: "User",
-        select: "name email role",
-      },
-    });
-  if (!jobApplicants || jobApplicants.length === 0) {
-    return res.status(StatusCodes.OK).json({ msg: [] });
-  }
-  const job = jobApplicants[0].job;
 
-  if (!job || !job.createdBy) {
-    return res.status(404).json({ error: "Job or creator info not found." });
+  const job = await JobModal.findById(jobId);
+  if (!job) {
+    throw new NotFoundError("Job not found");
   }
+  checkPermissions(req.user, job.createdBy);
 
-  checkPermissions(req.user, job.createdBy._id);
-  res.status(StatusCodes.OK).json({ msg: jobApplicants });
+  const jobApplicants = await JobApplicationModal.find({ job: jobId }).populate(
+    "talent",
+    "name email phone profileImage"
+  );
+
+  res.status(StatusCodes.OK).json({ applications: jobApplicants });
 };
 
 /**
@@ -264,4 +263,62 @@ export const withdrawApplication = async (req, res) => {
 export const getMyApplications = async (req, res) => {
   const applications = await JobApplicationModal.find({ talent: req.user.userId }).populate('job');
   res.status(StatusCodes.OK).json({ TotalSubmittedApplications: applications.length, applications });
+};
+
+/**
+ * @swagger
+ * /api/v1/applications/{id}/cv:
+ *   get:
+ *     summary: Download the CV attached to a job application
+ *     description: >
+ *       Only the applicant who submitted the CV or the employer who owns the job it
+ *       was submitted for may access the file. CVs are never served publicly.
+ *     tags: [Job Applications]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Job application ID
+ *         example: 507f1f77bcf86cd799439011
+ *     responses:
+ *       200:
+ *         description: CV file stream
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: Bad request - malformed application ID
+ *       401:
+ *         description: Unauthorized - not authenticated
+ *       403:
+ *         description: Forbidden - not the applicant or the owning employer
+ *       404:
+ *         description: Application or CV file not found
+ */
+export const getApplicationCV = async (req, res, next) => {
+  const { id } = req.params;
+  const application = await JobApplicationModal.findById(id).populate('job', 'createdBy');
+  if (!application) {
+    throw new NotFoundError("Job application not found");
+  }
+
+  const isApplicant = req.user.userId === application.talent.toString();
+  const isOwningEmployer = Boolean(
+    application.job && req.user.userId === application.job.createdBy.toString()
+  );
+  if (!isApplicant && !isOwningEmployer) {
+    throw new ForbiddenError("You are not authorized to access this file");
+  }
+
+  if (!cvExists(application.cv)) {
+    throw new NotFoundError("CV file not found");
+  }
+
+  streamCv(application.cv, res, next);
 };

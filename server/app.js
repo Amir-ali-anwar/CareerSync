@@ -1,11 +1,8 @@
 import express from "express";
-import dotenv from "dotenv";
-dotenv.config();
 import morgan from "morgan";
 import cors from "cors";
-import path from "path";
-import { fileURLToPath } from "url";
-import connectDB from "./db/connect.js";
+import mongoose from "mongoose";
+import { StatusCodes } from "http-status-codes";
 import notFoundMiddleware from "./middlewares/not-found.js";
 import errorHandlerMiddleware from "./middlewares/error-handler.js";
 import authenticateUser from './middlewares/auth.js'
@@ -17,16 +14,56 @@ import GetJobApplication from './routes/jobApplicationRoutes.js'
 import talentRoutes from './routes/talentRoutes.js'
 import organizationRoutes from './routes/OrganizationRoutes.js'
 import { swaggerUi, specs } from './config/swagger.js';
+import { globalLimiter } from './middlewares/rateLimiter.js';
+import requestId from './middlewares/requestId.js';
+import redactUrl from './utils/redactUrl.js';
 
 const app = express();
+
+// Liveness/readiness probes are registered before body parsing, cookies, rate limiting,
+// the request-id middleware, and access logging - orchestrators poll these every few
+// seconds, so they stay cheap and don't spam the structured access log or burn rate-limit
+// budget. Neither response carries an X-Request-Id header; that's intentional here.
+// /healthz: process is up and can respond - never touches Mongo.
+app.get('/healthz', (req, res) => {
+  res.status(StatusCodes.OK).json({ status: 'ok' });
+});
+// /readyz: process is up AND its dependencies (currently just MongoDB) are usable.
+app.get('/readyz', (req, res) => {
+  const isDbReady = mongoose.connection.readyState === 1; // 1 = connected
+  if (!isDbReady) {
+    return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({ status: 'error' });
+  }
+  res.status(StatusCodes.OK).json({ status: 'ok' });
+});
+
 app.use(express.json());
 app.use(cookieParser(process.env.JWT_SECRET));
-app.use(morgan("tiny"));
+// Every request gets a server-generated correlation id, echoed back as X-Request-Id
+// and included in both access log lines and error responses.
+app.use(requestId);
+// Structured (JSON-lines) access log, replacing the old plain-text "tiny" format, with
+// sensitive query-string values (verification tokens, etc.) redacted before logging.
+app.use(
+  morgan((tokens, req, res) =>
+    JSON.stringify({
+      level: 'info',
+      time: new Date().toISOString(),
+      requestId: req.id,
+      method: tokens.method(req, res),
+      url: redactUrl(tokens.url(req, res)),
+      status: Number(tokens.status(req, res)),
+      responseTimeMs: Number(tokens['response-time'](req, res)),
+    })
+  )
+);
+// Baseline ceiling for every request; endpoints with sharper abuse potential
+// (login, job applications, CSV export, ...) layer a stricter limiter on top.
+app.use(globalLimiter);
 
-// Serve uploaded files (CVs, etc.)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// NOTE: uploaded CVs are intentionally NOT served via a public express.static mount -
+// they contain applicant PII. Access goes through the authenticated, ownership-checked
+// GET /api/v1/applications/:id/cv route instead (see controllers/jobApplicationController.js).
 
 // CORS configuration
 app.use(cors({
@@ -54,17 +91,4 @@ app.use("/api/v1/organization", organizationRoutes);
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
 
-const PORT = process.env.PORT || process.env.port || 4000;
-
-const start = async () => {
-  try {
-    const mongoUri = process.env.MONGO_URL || process.env.MONGO_URI;
-    await connectDB(mongoUri);
-    app.listen(PORT, () => {
-      console.log(`server listening on the ${PORT}`);
-    });
-  } catch (error) {
-    console.log(error);
-  }
-};
-start();
+export default app;
