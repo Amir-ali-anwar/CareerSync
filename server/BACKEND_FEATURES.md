@@ -231,10 +231,15 @@ CareerSync is a job portal API that connects **Talents** (job seekers) with **Em
 
 - ✅ CORS configuration with credentials
 - ✅ MongoDB connection error handling (exits on failure)
-- ✅ Environment variable support
-- ✅ Request logging (Morgan)
-- ✅ Docker support (Dockerfile included)
-- ✅ Git-ignored sensitive files (.env)
+- ✅ Environment variable support, with fail-fast startup checks for required secrets
+- ✅ Structured (JSON) request logging with per-request correlation IDs (`X-Request-Id`)
+- ✅ Global + per-endpoint rate limiting (auth, job creation/application, CSV export, organization creation)
+- ✅ Liveness (`GET /healthz`) and readiness (`GET /readyz`) probes
+- ✅ Docker support (multi-stage-free, non-root runtime user)
+- ✅ CI pipeline (GitHub Actions) running the full test suite on every push/PR
+- ✅ Git-ignored sensitive files (.env); `.env.example` documents required variables
+- ✅ Authenticated, ownership-checked CV access (no public static file serving)
+- ✅ Refresh tokens hashed at rest; separate signing secrets for access vs. refresh JWTs
 
 ---
 
@@ -267,9 +272,9 @@ server/
 │   └── not-found.js
 ├── models/
 │   ├── User.js
-│   ├── JobsModal.js
-│   ├── JobApplicationModal.js
-│   ├── OrganizationModal.js
+│   ├── JobsModel.js
+│   ├── JobApplicationModel.js
+│   ├── OrganizationModel.js
 │   └── Token.js
 ├── routes/
 │   ├── authRoutes.js
@@ -290,15 +295,46 @@ server/
 
 ## 🔧 Environment Variables
 
+See `.env.example` for the full, authoritative list. Summary:
+
 ```env
 NODE_ENV=development
-PORT=5000
+PORT=4000
 MONGO_URL=<mongodb_connection_string>
-JWT_SECRET=<your_jwt_secret>
+JWT_SECRET=<your_jwt_secret>              # required - server refuses to start without it
+JWT_REFRESH_SECRET=<a_different_secret>   # required - must differ from JWT_SECRET
 JWT_EXPIRES_IN=1d
-CLIENT_URL=http://localhost:3000
+JWT_REFRESH_EXPIRES_IN=30d
+CLIENT_URL=http://localhost:3000          # required when NODE_ENV=production
+SALT_ROUNDS=10
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
 ```
 
 ---
 
-*Documentation generated on May 24, 2026*
+## 🔮 Roadmap — Planned, NOT Yet Implemented
+
+The following are intentionally **not** built yet. They are listed here so the docs
+never imply more than the codebase actually does:
+
+- **AI-powered job matching** (candidate ↔ job similarity scoring)
+- **Semantic search** (natural-language job/candidate search via embeddings)
+- **Skill-gap analysis / recommendations**
+- **Resume/CV analysis** (quality scoring, parsing, ATS compatibility)
+
+`utils/embedding.js` contains a single OpenAI embedding-generation helper - an initial
+scaffold with no caller anywhere in the codebase yet. It is intentionally kept in place
+for the next development phase (AI job matching → embeddings → vector search →
+semantic search → recommendations) rather than removed, but it does not currently power
+any feature. Do not treat its presence as evidence that AI matching/search exists today.
+
+Also not implemented: real-time messaging, a notification system beyond transactional
+verification email, an analytics dashboard, and monetization/subscriptions. All of these
+are tracked as future phases, not current functionality.
+
+---
+
+*Documentation last reviewed as part of the P0/P1/P2 backend hardening pass.*

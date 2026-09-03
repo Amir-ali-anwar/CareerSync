@@ -71,10 +71,21 @@ The API uses JWT (JSON Web Tokens) for authentication. Tokens are stored in http
 
 | Method | Endpoint | Description | Auth Required | Role |
 |--------|----------|-------------|---------------|------|
-| GET | `/:jobId` | Get job applications | Yes | Employer |
+| GET | `/job/:jobId` | Get job applications | Yes | Employer |
 | PATCH | `/:jobId/:applicantId/status` | Update application status | Yes | Employer |
 | PATCH | `/:id/withdraw` | Withdraw application | Yes | Talent |
-| GET | `/my-applications` | Get user's applications | Yes | Talent |
+| GET | `/my` | Get user's applications | Yes | Talent |
+| GET | `/:id/cv` | Download the CV attached to an application (applicant or owning employer only) | Yes | Talent (own) / Employer (own job) |
+
+> CVs are **not** served as public static files. `GET /:id/cv` is the only access path,
+> and it enforces that the caller is either the applicant or the employer who owns the job.
+
+### Health & Readiness (no `/api/v1` prefix)
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|----------------|
+| GET | `/healthz` | Liveness probe - always 200 if the process is up; never touches MongoDB | No |
+| GET | `/readyz` | Readiness probe - 200 if MongoDB is connected, 503 otherwise | No |
 
 ### Talents (`/api/v1/talents`)
 
