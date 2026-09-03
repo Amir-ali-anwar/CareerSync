@@ -1,4 +1,4 @@
-import OrganizationModal from "../models/OrganizationModal.js";
+import OrganizationModal from "../models/OrganizationModel.js";
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
@@ -671,11 +671,14 @@ export const followOrganization = async (req, res) => {
 export const getOrganizationFollowers = async (req, res) => {
   const organizationId = req.params.id;
   const organization = await OrganizationModal.findById(organizationId).select(
-    "followers -_id"
+    "followers createdBy -_id"
   );
   if (!organization) {
     throw new NotFoundError("Organization not found");
   }
+  // This is the employer-management view (contrast with the public follower COUNT
+  // endpoint below, which is intentionally open) - only the owning employer may see it.
+  checkPermissions(req.user, organization.createdBy);
   const followers = organization.followers || [];
   return res.status(StatusCodes.OK).json({ followers });
 };
@@ -736,27 +739,11 @@ export const checkIfFollowingOrganization = async (req, res) => {
   return res.status(StatusCodes.OK).json({ isFollowing });
 };
 
-/**
- * @swagger
- * /api/v1/organization/analytics:
- *   get:
- *     summary: Get organization analytics
- *     tags: [Organizations]
- *     security:
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: Organization analytics retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 analytics:
- *                   type: object
- *                   description: Organization analytics data
- */
-export const getOrganizationAnalytics = async (req, res) => {};
+// NOTE: An organization analytics endpoint was stubbed here but was never wired into
+// OrganizationRoutes.js and had no response logic (it would have hung any request that
+// reached it). Removed as dead code rather than left half-built and misleadingly
+// documented in Swagger. Real analytics (applicants per job, conversion rate, follower
+// growth, etc.) is tracked as a future feature, not implemented in this pass.
 
 /**
  * @swagger
@@ -792,9 +779,12 @@ export const getAllPublicOrganizations = async (req, res) => {
 export const getSinglePublicOrganization = async (req, res) => {
   const { id: organizationId } = req.params;
 
-  const SingleOrganization = await OrganizationModal.findById(organizationId);
+  const organization = await OrganizationModal.findById(organizationId);
+  if (!organization) {
+    throw new NotFoundError("Organization not found");
+  }
 
-  return res.status(StatusCodes.OK).json({ SingleOrganization });
+  return res.status(StatusCodes.OK).json({ organization });
 };
 
 export const getPublicFollowerCount = async (req, res) => {
