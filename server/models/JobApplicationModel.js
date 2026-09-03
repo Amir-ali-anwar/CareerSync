@@ -57,4 +57,12 @@ const JobApplicationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Enforces "one application per talent per job" and, as a side effect, already covers
+// lookups filtered by `job` alone (getJobApplications) since job is the index prefix.
+JobApplicationSchema.index({ job: 1, talent: 1 }, { unique: true });
+
+// getMyApplications filters by `talent` alone, which the compound index above can't
+// serve efficiently (talent isn't its prefix field) - needs its own index.
+JobApplicationSchema.index({ talent: 1 });
+
 export default mongoose.model('JobApplication', JobApplicationSchema);

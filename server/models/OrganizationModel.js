@@ -96,5 +96,7 @@ const organizationSchema = new mongoose.Schema(
   }
 );
 
+// getAllOrganizations is filtered by createdBy on every call (employer's own orgs).
+organizationSchema.index({ createdBy: 1 });
 
 export default mongoose.model("Organization", organizationSchema);

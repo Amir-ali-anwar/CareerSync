@@ -1,9 +1,20 @@
-import JobModal from "../models/JobsModal.js";
-import JobApplicationModal from '../models/JobApplicationModal.js'
 import mongoose from "mongoose";
+import JobModal from "../models/JobsModel.js";
+import JobApplicationModal from '../models/JobApplicationModel.js'
 import { StatusCodes } from "http-status-codes";
 import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
+
+// Standalone MongoDB deployments (local dev, mongodb-memory-server's default single-node
+// mode) reject multi-document transactions outright; only a replica set/mongos (which
+// Atlas always is) supports them. Matches the error MongoDB raises in that case so we can
+// fall back to a plain sequential delete instead of crashing on unsupported environments.
+const isTransactionsUnsupportedError = (error) =>
+  /Transaction numbers are only allowed on a replica set member or mongos|Transactions are not supported/i.test(
+    error?.message || ""
+  );
+
+const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * @swagger
@@ -90,9 +101,21 @@ import { checkPermissions } from "../middlewares/permissions.js";
  *               $ref: '#/components/schemas/Error'
  */
 export const createJob = async (req, res) => {
-  const { title, company, jobType, jobLocation, description } = req.body;
+  const { title, company, jobType, jobLocation, description, applicationDeadline } = req.body;
   if (!title || !company || !jobType || !jobLocation || !description) {
     throw new BadRequestError("Please provide all required job fields");
+  }
+  if (!jobLocation.country || !jobLocation.city) {
+    throw new BadRequestError("Job location must include country and city");
+  }
+  if (applicationDeadline !== undefined && applicationDeadline !== null) {
+    const deadlineDate = new Date(applicationDeadline);
+    if (isNaN(deadlineDate.getTime())) {
+      throw new BadRequestError("Application deadline must be a valid date");
+    }
+    if (deadlineDate.getTime() < Date.now()) {
+      throw new BadRequestError("Application deadline cannot be in the past");
+    }
   }
   req.body.createdBy = req.user.userId;
   const job = await JobModal.create(req.body);
@@ -143,10 +166,31 @@ export const deleteJob = async (req, res) => {
   const { id: jobId } = req.params;
   const job = await JobModal.findById(jobId);
   if (!job) {
-    throw new BadRequestError("Job not found");
+    throw new NotFoundError("Job not found");
   }
   checkPermissions(req.user, job.createdBy)
-  await job.deleteOne();
+
+  // Delete the job and its applications atomically where the deployment supports it
+  // (any real replica set, including MongoDB Atlas) so a crash mid-delete can never
+  // orphan application records. Standalone MongoDB (local dev, mongodb-memory-server's
+  // default mode) can't run transactions, so those environments fall back to the
+  // previous sequential behavior instead of failing outright.
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      await JobApplicationModal.deleteMany({ job: jobId }, { session });
+      await job.deleteOne({ session });
+    });
+  } catch (error) {
+    if (!isTransactionsUnsupportedError(error)) {
+      throw error;
+    }
+    await JobApplicationModal.deleteMany({ job: jobId });
+    await job.deleteOne();
+  } finally {
+    await session.endSession();
+  }
+
   res.status(StatusCodes.OK).json({ msg: 'job deleted Successfully' });
 };
 
@@ -240,10 +284,11 @@ export const getAllJobs = async (req, res) => {
   };
 
   if (search) {
+    const safeSearch = escapeRegex(search);
     queryObject.$or = [
-      { position: { $regex: search, $options: 'i' } },
-      { company: { $regex: search, $options: 'i' } },
-      { title: { $regex: search, $options: 'i' } },
+      { position: { $regex: safeSearch, $options: 'i' } },
+      { company: { $regex: safeSearch, $options: 'i' } },
+      { title: { $regex: safeSearch, $options: 'i' } },
     ];
   }
 
@@ -265,15 +310,14 @@ export const getAllJobs = async (req, res) => {
 
   // setup pagination
 
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 10;
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.max(Number(req.query.limit) || 10, 1);
   const skip = (page - 1) * limit;
 
   const jobs = await JobModal.find(queryObject)
     .sort(sortKey)
     .skip(skip)
     .limit(limit);
-  console.log({ jobs });
 
   const totalJobs = await JobModal.countDocuments(queryObject);
   const numOfPages = Math.ceil(totalJobs / limit);
@@ -423,6 +467,17 @@ export const updateJob = async (req, res) => {
   // sanitize
   delete req.body.createdBy;
   delete req.body._id;
+
+  if (req.body.jobLocation && (!req.body.jobLocation.country || !req.body.jobLocation.city)) {
+    throw new BadRequestError("Job location must include country and city");
+  }
+  if (req.body.applicationDeadline !== undefined && req.body.applicationDeadline !== null) {
+    const deadlineDate = new Date(req.body.applicationDeadline);
+    if (isNaN(deadlineDate.getTime())) {
+      throw new BadRequestError("Application deadline must be a valid date");
+    }
+  }
+
   const job = await JobModal.findOneAndUpdate(
     { _id: req.params.id, createdBy: req.user.userId },
     req.body,
@@ -574,57 +629,34 @@ export const applyForJob = async (req, res) => {
   }
 
   const cvPath = `/uploads/cvs/${req?.file.filename}`;
-  // const portfolioPath = portfolio
-  //   ? `/uploads/portfolio/${portfolio.filename}`
-  //   : null;
   const portfolioPath = portfolio || null;
 
 
-  const session = await mongoose.startSession();
   let newApplication;
 
   try {
-    await session.withTransaction(async () => {
-      const createdApplications = await JobApplicationModal.create(
-        [
-          {
-            job: id,
-            Jobtitle: job?.title,
-            talent: req.user.userId,
-            coverLetter: coverLetter || "",
-            cv: cvPath || "",
-            portfolio: portfolioPath,
-            linkedInProfile: linkedInProfile || "",
-            skills: skills || [],
-            experienceLevel: experienceLevel || "beginner",
-            availability: availability || "",
-            locationPreferences: locationPreferences || "",
-            references: references || [],
-          },
-        ],
-        { session }
-      );
-
-      newApplication = createdApplications[0];
-
-      await JobModal.findByIdAndUpdate(
-        id,
-        {
-          $push: {
-            applicants: {
-              talent: req.user.userId,
-              job: id,
-              resume: cvPath || "",
-              status: "pending",
-              appliedAt: new Date(),
-            },
-          },
-        },
-        { session }
-      );
-    });
-  } finally {
-    await session.endSession();
+    const createdApplications = await JobApplicationModal.create([
+      {
+        job: id,
+        Jobtitle: job?.title,
+        talent: req.user.userId,
+        coverLetter: coverLetter || "",
+        cv: cvPath || "",
+        portfolio: portfolioPath,
+        linkedInProfile: linkedInProfile || "",
+        skills: skills || [],
+        experienceLevel: experienceLevel || "beginner",
+        availability: availability || "",
+        locationPreferences: locationPreferences || "",
+        references: references || [],
+      },
+    ]);
+    newApplication = createdApplications[0];
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new BadRequestError("You have already applied for this job");
+    }
+    throw error;
   }
 
   res.status(StatusCodes.CREATED).json({
@@ -768,13 +800,14 @@ export const searchJobs = async (req, res) => {
   ];
 
   if (search) {
+    const safeSearch = escapeRegex(search);
     queryObject.$and = [
       {
         $or: [
-          { title: { $regex: search, $options: 'i' } },
-          { position: { $regex: search, $options: 'i' } },
-          { company: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
+          { title: { $regex: safeSearch, $options: 'i' } },
+          { position: { $regex: safeSearch, $options: 'i' } },
+          { company: { $regex: safeSearch, $options: 'i' } },
+          { description: { $regex: safeSearch, $options: 'i' } },
         ],
       },
     ];
@@ -785,7 +818,7 @@ export const searchJobs = async (req, res) => {
   }
 
   if (country) {
-    queryObject['jobLocation.country'] = { $regex: country, $options: 'i' };
+    queryObject['jobLocation.country'] = { $regex: escapeRegex(country), $options: 'i' };
   }
 
   const sortOptions = {
@@ -796,12 +829,11 @@ export const searchJobs = async (req, res) => {
   };
   const sortKey = sortOptions[sort] || sortOptions.newest;
 
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 10;
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.max(Number(req.query.limit) || 10, 1);
   const skip = (page - 1) * limit;
 
   const jobs = await JobModal.find(queryObject)
-    .select('-applicants')
     .sort(sortKey)
     .skip(skip)
     .limit(limit);

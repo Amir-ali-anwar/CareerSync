@@ -1,9 +1,10 @@
-import JobModal from "../models/JobsModal.js";
-import JobApplicationModal from "../models/JobApplicationModal.js";
+import JobModal from "../models/JobsModel.js";
+import JobApplicationModal from "../models/JobApplicationModel.js";
 import { StatusCodes } from "http-status-codes";
-import { BadRequestError } from "../errors/index.js";
-import { checkPermissions } from "../middlewares/permissions.js";
+import { NotFoundError } from "../errors/index.js";
 import { Parser } from 'json2csv';
+
+const MAX_EXPORT_RECORDS = 5000;
 
 /**
  * @swagger
@@ -39,9 +40,29 @@ export const getAllTalents = async (req, res) => {
   const employerId = req.user.userId;
   const employerJobs = await JobModal.find({ createdBy: employerId }).select('_id');
   const employerJobIds = employerJobs.map(job => job._id);
-  const applications = await JobApplicationModal.find({ job: { $in: employerJobIds } })
-  if(applications.length===0) return  res.status(StatusCodes.OK).json({msg:"No Applicants found" });
-   res.status(StatusCodes.OK).json({ applications });
+
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  const queryFilter = { job: { $in: employerJobIds } };
+
+  const [applications, totalApplications] = await Promise.all([
+    JobApplicationModal.find(queryFilter)
+      .populate('talent', 'name email phone profileImage')
+      .populate('job', 'title company position')
+      .sort('-createdAt')
+      .skip(skip)
+      .limit(limit),
+    JobApplicationModal.countDocuments(queryFilter),
+  ]);
+
+  res.status(StatusCodes.OK).json({
+    totalApplications,
+    numOfPages: Math.max(Math.ceil(totalApplications / limit), 1),
+    currentPage: page,
+    applications,
+  });
 };
 
 /**
@@ -79,11 +100,26 @@ export const getAllTalents = async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-export const getTalentById=async(req,res)=>{
-  const {talentId}= req.params
-  const talent = await JobApplicationModal.find({talent:talentId}).populate('job')
+export const getTalentById = async (req, res) => {
+  const { talentId } = req.params;
+  const employerId = req.user.userId;
+
+  const employerJobs = await JobModal.find({ createdBy: employerId }).select('_id');
+  const employerJobIds = employerJobs.map(job => job._id);
+
+  const talent = await JobApplicationModal.find({
+    talent: talentId,
+    job: { $in: employerJobIds },
+  })
+    .populate('talent', 'name email phone profileImage')
+    .populate('job', 'title company position');
+
+  if (!talent || talent.length === 0) {
+    throw new NotFoundError("Talent not found or has not applied to any of your jobs");
+  }
+
   res.status(StatusCodes.OK).json({ talent });
-}
+};
 
 /**
  * @swagger
@@ -121,10 +157,13 @@ export const exportApplications = async (req, res) => {
   const employerJobs = await JobModal.find({ createdBy: employerId }).select('_id');
   const employerJobIds = employerJobs.map(job => job._id);
 
-  // Step 2: Fetch applications for these jobs
+  // Step 2: Fetch applications for these jobs (capped to keep memory/response bounded)
   const applications = await JobApplicationModal.find({ job: { $in: employerJobIds } })
     .populate('talent', 'name email phone')
-    .populate('job', 'title company position');
+    .populate('job', 'title company position')
+    .sort('-createdAt')
+    .limit(MAX_EXPORT_RECORDS)
+    .lean();
 
   if (applications.length === 0) {
     return res.status(StatusCodes.OK).json({ msg: 'No applicants found to export.' });

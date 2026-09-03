@@ -29,10 +29,10 @@ const JobSchema = new mongoose.Schema(
     },
     jobLocation: {
       type: {
-        country: String,
-        city: String,
+        country: { type: String, required: true },
+        city: { type: String, required: true },
       },
-      default: { country: "", city: "" },
+      required: true,
     },
     description: {
       type: String,
@@ -51,33 +51,19 @@ const JobSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
-    applicants: [
-      {
-        talent: {
-          type: mongoose.Types.ObjectId,
-          ref: "User",
-        },
-        job: {
-          type: mongoose.Types.ObjectId,
-          ref: "Job",
-        },
-        status: {
-          type: String,
-          enum: ["pending", "shortlisted", "rejected"],
-          default: "pending",
-        },
-        appliedAt: {
-          type: Date,
-          default: Date.now,
-        },
-        resume: { type: String },
-      },
-    ],
   },
   {
     timestamps: true,
   }
 );
+
+// getAllJobs/getJob/updateJob/deleteJob all filter or verify ownership by createdBy -
+// without this, every employer-scoped listing is a full collection scan.
+JobSchema.index({ createdBy: 1 });
+
+// searchJobs (the talent-facing browse endpoint) always filters `isClosed: false` plus
+// an applicationDeadline range/null check; a compound index lets Mongo narrow on both
+// in a single index scan instead of collection-scanning past every closed/expired job.
+JobSchema.index({ isClosed: 1, applicationDeadline: 1 });
 
 export default mongoose.model("Job", JobSchema);
