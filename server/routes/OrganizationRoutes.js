@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authorizePermissions } from "../middlewares/permissions.js";
 import authenticateUser from "../middlewares/auth.js";
+import { organizationCreationLimiter } from "../middlewares/rateLimiter.js";
 const router = Router();
 import {
   createOrganization,
@@ -14,7 +15,7 @@ import {
 } from "../controllers/organizationController.js";
 router
   .route("/")
-  .post(authenticateUser, authorizePermissions("employer"), createOrganization)
+  .post(authenticateUser, authorizePermissions("employer"), organizationCreationLimiter, createOrganization)
   .get(authenticateUser, authorizePermissions("employer"), getAllOrganizations);
 router
   .route("/:id/follow")

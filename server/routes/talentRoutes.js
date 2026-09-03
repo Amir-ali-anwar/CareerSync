@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authorizePermissions } from "../middlewares/permissions.js";
+import { csvExportLimiter } from "../middlewares/rateLimiter.js";
 
 import {
   getAllTalents,
@@ -12,6 +13,7 @@ router.route("/").get(authorizePermissions("employer"), getAllTalents);
 router.get(
   "/export-applications",
   authorizePermissions("employer"),
+  csvExportLimiter,
   exportApplications
 );
 router.route("/:talentId").get(authorizePermissions("employer"), getTalentById);
