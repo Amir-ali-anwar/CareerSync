@@ -1,8 +1,7 @@
 import mongoose from "mongoose";
 import validator from "validator";
-// import JobApplicationModal from "./JobApplicationModal.js";
-import JobsModal from "./JobsModal.js";
-import JobApplicationModal from "./JobApplicationModal.js";
+import JobsModal from "./JobsModel.js";
+import JobApplicationModal from "./JobApplicationModel.js";
 import bcrypt from "bcryptjs";
 const UserSchema = new mongoose.Schema(
   {
@@ -34,6 +33,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: [true, "Please provide password"],
       minlength: [5, "Password must be at least 5 characters"],
+      select: false,
     },
     lastName: {
       type: String,
@@ -69,6 +69,24 @@ const UserSchema = new mongoose.Schema(
           });
         },
         message: "Please provide a valid phone number",
+      },
+    },
+    companyName: {
+      type: String,
+      required: function () {
+        return this.role === "employer";
+      },
+    },
+    companySize: {
+      type: String,
+      required: function () {
+        return this.role === "employer";
+      },
+    },
+    industry: {
+      type: String,
+      required: function () {
+        return this.role === "employer";
       },
     },
     verificationToken: {

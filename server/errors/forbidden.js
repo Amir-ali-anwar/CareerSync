@@ -1,10 +1,10 @@
 import { StatusCodes } from "http-status-codes";
 import CustomAPIError from "./CustomAPIError.js";
 
-class NotFoundError extends CustomAPIError {
+class ForbiddenError extends CustomAPIError {
   constructor(message) {
     super(message);
-    this.statusCode = StatusCodes.NOT_FOUND;
+    this.statusCode = StatusCodes.FORBIDDEN;
   }
 }
-export default NotFoundError;
+export default ForbiddenError;

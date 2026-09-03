@@ -3,11 +3,51 @@ import {
   attachCookiesToResponse,
   createTokenUser,
   sendVerificationEmail,
+  isTokenValid,
+  hashToken,
 } from "../utils/index.js";
 import { BadRequestError, UnAuthenticatedError } from "../errors/index.js";
 import crypto from "crypto";
 import User from "../models/User.js";
 import Token from "../models/Token.js";
+import logger from "../utils/logger.js";
+
+// Fire-and-forget: an account is fully created/updated in the database before this is
+// called, so a slow or failing SMTP provider must never turn a successful registration/
+// update into a client-visible 500, nor block the response waiting on outbound email.
+// Failures are logged server-side (with the user's own resend-verification endpoint as
+// the recovery path) instead of surfacing as a request error.
+const dispatchVerificationEmail = (context, params) => {
+  sendVerificationEmail(params).catch((error) => {
+    logger.error("verification_email_failed", {
+      context,
+      userId: String(params.userId || ""),
+      message: error.message,
+    });
+  });
+};
+
+// Constant-time string comparison for secret tokens (verification tokens, etc.) so
+// response timing can't be used to guess a valid value character-by-character.
+const timingSafeEqualStrings = (a, b) => {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufferA = Buffer.from(a);
+  const bufferB = Buffer.from(b);
+  if (bufferA.length !== bufferB.length) return false;
+  return crypto.timingSafeEqual(bufferA, bufferB);
+};
+
+const CLEARED_COOKIE_NAMES = ["accessToken", "refreshToken", "refreshTokenSecret"];
+const clearAuthCookies = (res) => {
+  CLEARED_COOKIE_NAMES.forEach((name) => {
+    res.cookie(name, "logout", {
+      httpOnly: true,
+      expires: new Date(Date.now() + 1000),
+      secure: process.env.NODE_ENV === "production",
+      signed: true,
+    });
+  });
+};
 
 const getTrustedFrontendOrigin = () =>
   process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:3000";
@@ -164,30 +204,12 @@ const register = async (req, res) => {
     ...(role === "employer" && { companyName, companySize, industry }),
   };
 
-  if (role === "employer") {
-    userData.company = {
-      name: companyName,
-      size: companySize,
-      industry: industry,
-    };
-  }
-
   const user = await User.create(userData);
-  // const user = await User.create({
-  //   name,
-  //   email,
-  //   password,
-  //   lastName,
-  //   location,
-  //   city,
-  //   role,
-  //   phone,
-  //   verificationToken,
-  // });
 
   const origin = getTrustedFrontendOrigin();
 
-  await sendVerificationEmail({
+  dispatchVerificationEmail("register", {
+    userId: user._id,
     name: user.name,
     email: user.email,
     verificationToken: user.verificationToken,
@@ -259,7 +281,7 @@ const login = async (req, res, next) => {
   if (!email || !password) {
     throw new BadRequestError("Please provide email and password");
   }
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email }).select("+password");
 
   if (!user) {
     throw new UnAuthenticatedError("Invalid Credentials");
@@ -273,25 +295,95 @@ const login = async (req, res, next) => {
     throw new UnAuthenticatedError("Please verify your email");
   }
   const tokenUser = createTokenUser(user);
-  //refresh token
-  let refreshToken = "";
-  const existingToken = await Token.findOne({ user: user._id });
-  if (existingToken) {
-    const { isValid } = existingToken;
-    if (!isValid) {
-      throw new UnAuthenticatedError("Invalid Credentials");
-    }
-    refreshToken = existingToken.refreshToken;
-    attachCookiesToResponse({ res, user: tokenUser, refreshToken });
-    return res.status(StatusCodes.OK).json({ tokenUser });
-  }
-  refreshToken = crypto.randomBytes(40).toString("hex");
-  const userAgent = req.headers["user-agent"];
-  const ip = req.ip;
-  const userToken = { refreshToken, ip, userAgent, user: user._id };
-  await Token.create(userToken);
-  attachCookiesToResponse({ res, user: tokenUser, refreshToken });
 
+  // Issue a fresh refresh token on every login (replaces any previous one for this user).
+  // Only the SHA-256 hash of the opaque secret is persisted - the raw value never
+  // touches the database, so a DB leak alone can't be replayed as a valid credential.
+  const refreshTokenSecret = crypto.randomBytes(40).toString("hex");
+  // Some clients/proxies omit User-Agent entirely - default it so the required schema
+  // field is always satisfied instead of silently persisting an invalid Token document
+  // (findOneAndUpdate skips schema validation by default without runValidators).
+  const userAgent = req.headers["user-agent"] || "unknown";
+  const ip = req.ip;
+
+  await Token.findOneAndUpdate(
+    { user: user._id },
+    { refreshToken: hashToken(refreshTokenSecret), ip, userAgent, isValid: true },
+    { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
+  );
+
+  attachCookiesToResponse({ res, user: tokenUser, refreshTokenSecret });
+
+  res.status(StatusCodes.OK).json({ tokenUser });
+};
+
+/**
+ * @swagger
+ * /api/v1/auth/refresh-token:
+ *   post:
+ *     summary: Rotate the refresh token and issue a new access token
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Tokens refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tokenUser:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized - missing, expired, or reused refresh token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+const refreshUserToken = async (req, res) => {
+  const { refreshToken: refreshTokenCookie, refreshTokenSecret: refreshSecretCookie } =
+    req.signedCookies;
+  if (!refreshTokenCookie || !refreshSecretCookie) {
+    throw new UnAuthenticatedError("Authentication Invalid");
+  }
+
+  let payload;
+  try {
+    // The refresh JWT only proves identity + expiry; it never carries the opaque
+    // secret itself, and is verified against its own dedicated secret so a leaked
+    // access-token signing key alone can't be used to mint a refresh session.
+    payload = isTokenValid(refreshTokenCookie, process.env.JWT_REFRESH_SECRET);
+  } catch (error) {
+    throw new UnAuthenticatedError("Authentication Invalid");
+  }
+
+  const existingToken = await Token.findOne({ user: payload.userId });
+  const incomingHash = hashToken(refreshSecretCookie);
+
+  if (!existingToken || !existingToken.isValid || existingToken.refreshToken !== incomingHash) {
+    // Reuse of an already-rotated or revoked token: treat as compromised and revoke the session.
+    if (existingToken) {
+      existingToken.isValid = false;
+      await existingToken.save();
+    }
+    throw new UnAuthenticatedError("Authentication Invalid");
+  }
+
+  const user = await User.findById(payload.userId);
+  if (!user) {
+    existingToken.isValid = false;
+    await existingToken.save();
+    throw new UnAuthenticatedError("Authentication Invalid");
+  }
+
+  const newRefreshTokenSecret = crypto.randomBytes(40).toString("hex");
+  existingToken.refreshToken = hashToken(newRefreshTokenSecret);
+  await existingToken.save();
+
+  const tokenUser = createTokenUser(user);
+  attachCookiesToResponse({ res, user: tokenUser, refreshTokenSecret: newRefreshTokenSecret });
   res.status(StatusCodes.OK).json({ tokenUser });
 };
 
@@ -352,19 +444,45 @@ const updateUser = async (req, res, next) => {
   }
   const user = await User.findOne({ _id: req.user.userId });
 
+  const emailChanged = email.toLowerCase() !== user.email;
+  if (emailChanged) {
+    const emailTaken = await User.findOne({ email });
+    if (emailTaken) {
+      throw new BadRequestError("Email already exists");
+    }
+  }
+
   user.email = email;
   user.name = name;
 
+  if (emailChanged) {
+    // Changing email means the new address hasn't been proven, so re-verification is required.
+    user.isVerified = false;
+    user.verificationToken = crypto.randomBytes(40).toString("hex");
+    user.verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
+  }
+
   await user.save();
 
+  if (emailChanged) {
+    const origin = getTrustedFrontendOrigin();
+    dispatchVerificationEmail("updateUser", {
+      userId: user._id,
+      name: user.name,
+      email: user.email,
+      verificationToken: user.verificationToken,
+      origin,
+    });
+  }
+
   const tokenUser = createTokenUser(user);
-  const existingToken = await Token.findOne({ user: user._id });
-  attachCookiesToResponse({
-    res,
+  // Only the access-token cookie needs refreshing here (it carries the profile fields
+  // that just changed); the existing refresh session is left untouched.
+  attachCookiesToResponse({ res, user: tokenUser });
+  res.status(StatusCodes.OK).json({
     user: tokenUser,
-    refreshToken: existingToken?.refreshToken,
+    ...(emailChanged && { msg: "Email changed. Please verify your new email address." }),
   });
-  res.status(StatusCodes.OK).json({ user: tokenUser });
 };
 
 /**
@@ -427,7 +545,7 @@ const updateUserPassword = async (req, res) => {
   if (oldPassword === newPassword) {
     throw new BadRequestError("New password must be different from the old password");
   }
-  const user = await User.findOne({ _id: req.user.userId });
+  const user = await User.findOne({ _id: req.user.userId }).select("+password");
   const isPasswordCorrect = await user.comparePassword(oldPassword);
 
   if (!isPasswordCorrect) {
@@ -538,7 +656,8 @@ const resendVerificationToken = async (req, res) => {
   await user.save({ validateBeforeSave: false });
 
   const origin = getTrustedFrontendOrigin();
-  await sendVerificationEmail({
+  dispatchVerificationEmail("resendVerificationToken", {
+    userId: user._id,
     name: user.name,
     email: user.email,
     verificationToken,
@@ -600,7 +719,7 @@ const verifyEmail = async (req, res) => {
   if (user.verificationTokenExpires < new Date()) {
     throw new UnAuthenticatedError("Verification token expired. Please request a new one.");
   }
-  if (verificationToken !== user.verificationToken) {
+  if (!timingSafeEqualStrings(verificationToken, user.verificationToken)) {
     throw new UnAuthenticatedError("Verification Failed");
   }
   (user.isVerified = true),
@@ -636,19 +755,17 @@ const verifyEmail = async (req, res) => {
  *               example: accessToken=logout; HttpOnly; Secure; Expires=Thu, 01 Jan 1970 00:00:00 GMT
  */
 const logout = async (req, res) => {
-  res.cookie("accessToken", "logout", {
-    httpOnly: true,
-    expires: new Date(Date.now() + 1000),
-    secure: process.env.NODE_ENV === "production",
-    signed: true,
-  });
+  const { refreshToken: refreshTokenCookie } = req.signedCookies;
+  if (refreshTokenCookie) {
+    try {
+      const payload = isTokenValid(refreshTokenCookie, process.env.JWT_REFRESH_SECRET);
+      await Token.findOneAndUpdate({ user: payload.userId }, { isValid: false });
+    } catch (error) {
+      // Refresh token already invalid/expired - nothing server-side to revoke.
+    }
+  }
 
-  res.cookie("refreshToken", "logout", {
-    httpOnly: true,
-    expires: new Date(Date.now() + 1000),
-    secure: process.env.NODE_ENV === "production",
-    signed: true,
-  });
+  clearAuthCookies(res);
 
   res.status(StatusCodes.OK).json({ msg: "user logged out!" });
 };
@@ -661,5 +778,6 @@ export {
   showCurrentUser,
   verifyEmail,
   updateUserPassword,
-  resendVerificationToken
+  resendVerificationToken,
+  refreshUserToken,
 };
