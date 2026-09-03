@@ -4,6 +4,7 @@ import aiService from "../ai/index.js";
 import { extractTextFromCv } from "./textExtraction.js";
 import { AI_PROCESSING_STATUS } from "../../utils/constants.js";
 import logger from "../../utils/logger.js";
+import { triggerCandidateEmbedding } from "../embeddings/embeddingService.js";
 
 /**
  * Orchestrates: CV (via the existing CV storage abstraction) -> text extraction ->
@@ -106,6 +107,8 @@ const processResumeForApplication = async (applicationId) => {
     talentId: String(application.talent),
     profileVersion: updatedProfile.profileVersion,
   });
+
+  triggerCandidateEmbedding(application.talent);
 
   return { status: "completed", candidateProfileId: updatedProfile._id, profileVersion: updatedProfile.profileVersion };
 };

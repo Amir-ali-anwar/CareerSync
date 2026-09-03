@@ -21,6 +21,16 @@ const MATCHING_ALGORITHM_V1 = {
   semantic: 0,
 };
 
+const MATCHING_ALGORITHM_V2 = {
+  requiredSkills: 0.35,
+  preferredSkills: 0.1,
+  experience: 0.15,
+  seniority: 0.1,
+  domain: 0.05,
+  preferences: 0.15,
+  semantic: 0.1,
+};
+
 // Rationale (documented per the module's own "document the weights" requirement):
 // - requiredSkills (40%): the single most decisive factor - a candidate missing most
 //   required skills shouldn't be able to out-rank one who has them, no matter how
@@ -33,10 +43,11 @@ const MATCHING_ALGORITHM_V1 = {
 //   without being able to compensate for a large required-skills shortfall (see
 //   scoreAggregator.js's weighted-average design and its own tests for the "required
 //   skills must dominate" guarantee).
-const CURRENT_VERSION = "v1";
+const CURRENT_VERSION = "v2";
 
 const ALGORITHM_VERSIONS = {
   v1: MATCHING_ALGORITHM_V1,
+  v2: MATCHING_ALGORITHM_V2,
 };
 
 const getAlgorithmWeights = (version = CURRENT_VERSION) => {

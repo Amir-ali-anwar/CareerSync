@@ -82,6 +82,21 @@ const JobProfileSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    embedding: {
+      type: [Number],
+      default: undefined,
+      select: false,
+    },
+    embeddingMetadata: {
+      sourceType: String,
+      sourceId: String,
+      sourceVersion: Number,
+      embeddingModel: String,
+      embeddingVersion: String,
+      dimensions: Number,
+      contentHash: String,
+      generatedAt: Date,
+    },
   },
   { timestamps: true }
 );

@@ -92,8 +92,8 @@ const deriveProfileStatus = (profileDoc) => (profileDoc ? profileDoc.processingS
 const calculateMatchForCandidateAndJob = async (userId, jobId, options) => {
   const [job, candidateProfile, jobProfile] = await Promise.all([
     JobModel.findById(jobId),
-    CandidateProfileModel.findOne({ user: userId }),
-    JobProfileModel.findOne({ job: jobId }),
+    CandidateProfileModel.findOne({ user: userId }).select("+embedding"),
+    JobProfileModel.findOne({ job: jobId }).select("+embedding"),
   ]);
 
   if (!job) return null;
@@ -115,7 +115,7 @@ const calculateMatchForCandidateAndJob = async (userId, jobId, options) => {
  * for the (single) job all these applications belong to.
  */
 const calculateMatchesForCandidates = async (userIds, job, jobProfile, options) => {
-  const profiles = await CandidateProfileModel.find({ user: { $in: userIds } });
+  const profiles = await CandidateProfileModel.find({ user: { $in: userIds } }).select("+embedding");
   const profileByUserId = new Map(profiles.map((profile) => [String(profile.user), profile]));
 
   return userIds.reduce((byUserId, userId) => {

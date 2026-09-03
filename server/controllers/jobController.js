@@ -6,6 +6,8 @@ import { BadRequestError, NotFoundError } from "../errors/index.js";
 import { checkPermissions } from "../middlewares/permissions.js";
 import { triggerResumeProcessing } from "../services/resume/resumeProcessingService.js";
 import { triggerJobIntelligenceProcessing } from "../services/job/jobIntelligenceService.js";
+import { semanticJobSearch } from "../services/embeddings/semanticJobSearchService.js";
+import JobProfileModel from "../models/JobProfileModel.js";
 
 // Standalone MongoDB deployments (local dev, mongodb-memory-server's default single-node
 // mode) reject multi-document transactions outright; only a replica set/mongos (which
@@ -186,6 +188,7 @@ export const deleteJob = async (req, res) => {
   try {
     await session.withTransaction(async () => {
       await JobApplicationModal.deleteMany({ job: jobId }, { session });
+      await JobProfileModel.deleteOne({ job: jobId }, { session });
       await job.deleteOne({ session });
     });
   } catch (error) {
@@ -193,6 +196,7 @@ export const deleteJob = async (req, res) => {
       throw error;
     }
     await JobApplicationModal.deleteMany({ job: jobId });
+    await JobProfileModel.deleteOne({ job: jobId });
     await job.deleteOne();
   } finally {
     await session.endSession();
@@ -871,4 +875,50 @@ export const searchJobs = async (req, res) => {
   const numOfPages = Math.ceil(totalJobs / limit);
 
   res.status(StatusCodes.OK).json({ totalJobs, numOfPages, currentPage: page, jobs });
+};
+
+/**
+ * @swagger
+ * /api/v1/jobs/search/semantic:
+ *   get:
+ *     summary: Search active jobs by semantic similarity
+ *     tags: [Jobs]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema: { type: string, minLength: 2, maxLength: 500 }
+ *       - in: query
+ *         name: workMode
+ *         schema: { type: string, enum: [remote, hybrid, onsite, all] }
+ *       - in: query
+ *         name: jobType
+ *         schema: { type: string, enum: [full-time, part-time, internship, all] }
+ *       - in: query
+ *         name: threshold
+ *         schema: { type: number, minimum: 0, maximum: 1 }
+ *     responses:
+ *       200:
+ *         description: Ranked active jobs with semantic scores
+ *       400:
+ *         description: Invalid semantic-search query or filters
+ */
+export const searchJobsSemantically = async (req, res) => {
+  const query = String(req.query.q || "").trim();
+  if (query.length < 2 || query.length > 500) throw new BadRequestError("q must contain between 2 and 500 characters");
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+  const threshold = Number(req.query.threshold) || 0;
+  if (threshold < 0 || threshold > 1) throw new BadRequestError("threshold must be between 0 and 1");
+  const { items, total } = await semanticJobSearch(query, {
+    page,
+    limit,
+    threshold,
+    jobType: req.query.jobType,
+    workMode: req.query.workMode,
+    country: req.query.country,
+  });
+  res.status(StatusCodes.OK).json({ totalJobs: total, numOfPages: Math.ceil(total / limit), currentPage: page, jobs: items });
 };

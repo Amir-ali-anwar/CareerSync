@@ -13,7 +13,7 @@ describe("GET /api/v1/jobs/:jobId/match", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.match.matchScore).toBeGreaterThanOrEqual(0);
     expect(res.body.match.matchScore).toBeLessThanOrEqual(100);
-    expect(res.body.match.matchingAlgorithmVersion).toBe("v1");
+    expect(res.body.match.matchingAlgorithmVersion).toBe("v2");
   });
 
   it("rejects an unauthenticated request", async () => {

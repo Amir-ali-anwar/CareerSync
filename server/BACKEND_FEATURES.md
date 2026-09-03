@@ -5,6 +5,14 @@ CareerSync is a job portal API that connects **Talents** (job seekers) with **Em
 
 **Tech Stack:** Node.js, Express.js, MongoDB (Mongoose), JWT Authentication
 
+## Module F - Embeddings and Semantic Search
+
+- Existing `AIService` providers generate embeddings; the fake provider remains deterministic and network-free for development and CI.
+- `EmbeddingService` builds deterministic candidate/job text, hashes it, and asynchronously writes private, versioned vectors to MongoDB-derived profile indexes.
+- `v1` matching remains deterministic; `v2` adds a bounded 10% semantic similarity contribution without exposing raw vectors.
+- Talent semantic search: `GET /api/v1/jobs/search/semantic?q=...`, with active/deadline checks, filters, pagination, and threshold controls.
+- Run `npm run backfill:embeddings` manually to index existing completed profiles. MongoDB remains authoritative; the vector index is derived data.
+
 ---
 
 ## 🔐 Authentication Module

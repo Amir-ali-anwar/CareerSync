@@ -101,6 +101,21 @@ const CandidateProfileSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    embedding: {
+      type: [Number],
+      default: undefined,
+      select: false,
+    },
+    embeddingMetadata: {
+      sourceType: String,
+      sourceId: String,
+      sourceVersion: Number,
+      embeddingModel: String,
+      embeddingVersion: String,
+      dimensions: Number,
+      contentHash: String,
+      generatedAt: Date,
+    },
   },
   { timestamps: true }
 );

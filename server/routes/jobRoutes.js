@@ -4,11 +4,12 @@ import uploadCV from '../middlewares/fileuploader.js'
 import { jobCreationLimiter, applyForJobLimiter } from "../middlewares/rateLimiter.js";
 const router = Router();
 
-import { createJob, deleteJob, getAllJobs, getJob, updateJob, applyForJob, closeJob, searchJobs } from "../controllers/jobController.js";
+import { createJob, deleteJob, getAllJobs, getJob, updateJob, applyForJob, closeJob, searchJobs, searchJobsSemantically } from "../controllers/jobController.js";
 import { getJobMatch } from "../controllers/matchController.js";
 
 // Talent: browse all open jobs
 router.route('/search').get(authorizePermissions('talent'), searchJobs);
+router.route('/search/semantic').get(authorizePermissions('talent'), searchJobsSemantically);
 
 // Talent: this job's match score against the caller's own CandidateProfile
 router.get('/:jobId/match', authorizePermissions('talent'), getJobMatch);

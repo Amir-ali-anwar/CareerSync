@@ -14,6 +14,14 @@ phases are added — see each phase's own test requirement.
 
 ## COMPLETED
 
+### Module F - Embeddings and Semantic Search
+- Provider-backed embeddings reuse the existing AI service and deterministic fake provider.
+- Candidate and job profile embeddings are asynchronous, content-hash deduplicated, versioned, and private.
+- MongoDB provides the current derived vector index; a dedicated vector backend can replace `MongoVectorStore` when scale requires it.
+- Semantic matching is enabled as algorithm `v2`, while `v1` remains unchanged for historical behavior.
+- Talent-only semantic job retrieval supports active-job filtering, structured filters, thresholds, and pagination.
+- Manual backfill is available through `npm run backfill:embeddings`; it never runs automatically on startup.
+
 ### Production Hardening (P0/P1/P2, prior pass)
 - Authenticated, ownership-checked CV downloads; public static file serving removed.
 - Refresh tokens hashed (SHA-256) at rest; access/refresh JWTs use separate secrets.

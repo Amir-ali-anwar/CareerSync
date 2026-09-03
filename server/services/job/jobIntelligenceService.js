@@ -5,6 +5,7 @@ import aiService from "../ai/index.js";
 import { normalizeSkillList } from "../../utils/normalization.js";
 import { AI_PROCESSING_STATUS } from "../../utils/constants.js";
 import logger from "../../utils/logger.js";
+import { triggerJobEmbedding } from "../embeddings/embeddingService.js";
 
 const hashDescription = (description) =>
   crypto.createHash("sha256").update(description || "").digest("hex");
@@ -103,6 +104,8 @@ const processJobIntelligence = async (jobId) => {
     jobId: String(jobId),
     profileVersion: updatedProfile.profileVersion,
   });
+
+  triggerJobEmbedding(job._id);
 
   return { status: "completed", jobProfileId: updatedProfile._id, profileVersion: updatedProfile.profileVersion };
 };
