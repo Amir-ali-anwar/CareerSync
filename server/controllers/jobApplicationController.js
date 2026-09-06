@@ -76,10 +76,12 @@ export const getJobApplications = async (req, res) => {
   }
   checkPermissions(req.user, job.createdBy);
 
-  const jobApplicants = await JobApplicationModal.find({ job: jobId }).populate(
-    "talent",
-    "name email phone profileImage"
-  );
+  const jobApplicants = (
+    await JobApplicationModal.find({ job: jobId }).populate(
+      "talent",
+      "name email phone profileImage"
+    )
+  ).filter((application) => application.talent); // drop rows whose talent account no longer exists
 
   // Annotate each applicant with their match score against this job - reuses this
   // already-authorized (checkPermissions above) endpoint rather than adding a new
@@ -180,8 +182,13 @@ export const updateApplicationStatus = async (req, res) => {
   if (!application) {
     throw new NotFoundError("Job application not found");
   }
+  if (application.status === "withdrawn") {
+    throw new BadRequestError(
+      "This application was withdrawn by the candidate and cannot be updated"
+    );
+  }
   const job = await JobModal.findById(jobId).populate("createdBy");
-  if (!job) {
+  if (!job || !job.createdBy) {
     throw new NotFoundError("Job not found");
   }
   checkPermissions(req.user, job.createdBy._id);
@@ -272,8 +279,12 @@ export const withdrawApplication = async (req, res) => {
  *               properties:
  *                 TotalSubmittedApplications:
  *                   type: integer
- *                   description: Total number of applications submitted
+ *                   description: Total number of applications ever submitted, including withdrawn ones (matches applications.length)
  *                   example: 5
+ *                 ActiveApplications:
+ *                   type: integer
+ *                   description: Number of applications not withdrawn
+ *                   example: 4
  *                 applications:
  *                   type: array
  *                   items:
@@ -287,7 +298,12 @@ export const withdrawApplication = async (req, res) => {
  */
 export const getMyApplications = async (req, res) => {
   const applications = await JobApplicationModal.find({ talent: req.user.userId }).populate('job');
-  res.status(StatusCodes.OK).json({ TotalSubmittedApplications: applications.length, applications });
+  const activeApplicationsCount = applications.filter((application) => application.status !== 'withdrawn').length;
+  res.status(StatusCodes.OK).json({
+    TotalSubmittedApplications: applications.length,
+    ActiveApplications: activeApplicationsCount,
+    applications,
+  });
 };
 
 /**

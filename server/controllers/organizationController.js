@@ -594,24 +594,25 @@ export const followOrganization = async (req, res) => {
   const userId = req.user.userId;
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  const organization = await OrganizationModal.findById(organizationId);
-  if (!organization) {
+  const organizationExists = await OrganizationModal.exists({ _id: organizationId });
+  if (!organizationExists) {
     return res
       .status(StatusCodes.NOT_FOUND)
       .json({ message: "Organiation not found" });
   }
-  const alreadyFollowing = organization?.followers?.some(
-    (f) => f.user.toString() === userId
-  );
 
-  if (alreadyFollowing) {
-    return res.status(StatusCodes.OK).json({ message: "Already following" });
-  }
-  await OrganizationModal.findByIdAndUpdate(
-    organizationId,
+  // Filter and update happen as a single atomic per-document operation, so a
+  // concurrent duplicate request (double-click, retry) can't race past the
+  // "not already following" check the way a separate find-then-push would.
+  const updated = await OrganizationModal.findOneAndUpdate(
+    { _id: organizationId, "followers.user": { $ne: userObjectId } },
     { $push: { followers: { user: userObjectId, followedAt: new Date() } } },
     { new: true }
   );
+
+  if (!updated) {
+    return res.status(StatusCodes.OK).json({ message: "Already following" });
+  }
 
   return res
     .status(StatusCodes.OK)
@@ -788,15 +789,17 @@ export const getSinglePublicOrganization = async (req, res) => {
 };
 
 export const getPublicFollowerCount = async (req, res) => {
-   const { id: organizationId } = req.params;
+  const { id: organizationId } = req.params;
   const organization = await OrganizationModal.findById(organizationId).select(
     "followers -_id"
   );
-   if (!organization) {
+  if (!organization) {
     return res
       .status(StatusCodes.NOT_FOUND)
       .json({ message: "Organiation not found" });
   }
 
-   return res.status(StatusCodes.OK).json({ organization });
+  return res
+    .status(StatusCodes.OK)
+    .json({ followerCount: organization.followers?.length || 0 });
 };

@@ -8,6 +8,7 @@ import { triggerResumeProcessing } from "../services/resume/resumeProcessingServ
 import { triggerJobIntelligenceProcessing } from "../services/job/jobIntelligenceService.js";
 import { semanticJobSearch } from "../services/embeddings/semanticJobSearchService.js";
 import JobProfileModel from "../models/JobProfileModel.js";
+import { AI_PROCESSING_STATUS } from "../utils/constants.js";
 
 // Standalone MongoDB deployments (local dev, mongodb-memory-server's default single-node
 // mode) reject multi-document transactions outright; only a replica set/mongos (which
@@ -644,7 +645,7 @@ export const applyForJob = async (req, res) => {
     job: id,
   });
 
-  if (existingApplication) {
+  if (existingApplication && existingApplication.status !== "withdrawn") {
     if (existingApplication.status === "rejected") {
       throw new BadRequestError(
         "You have already been rejected for this job and cannot reapply."
@@ -657,27 +658,38 @@ export const applyForJob = async (req, res) => {
   const cvPath = `/uploads/cvs/${req?.file.filename}`;
   const portfolioPath = portfolio || null;
 
+  const applicationFields = {
+    job: id,
+    Jobtitle: job?.title,
+    talent: req.user.userId,
+    status: "pending",
+    coverLetter: coverLetter || "",
+    cv: cvPath || "",
+    portfolio: portfolioPath,
+    linkedInProfile: linkedInProfile || "",
+    skills: skills || [],
+    experienceLevel: experienceLevel || "beginner",
+    availability: availability || "",
+    locationPreferences: locationPreferences || "",
+    references: references || [],
+    appliedAt: new Date(),
+    resumeProcessingStatus: AI_PROCESSING_STATUS.PENDING,
+    resumeProcessingError: undefined,
+  };
 
   let newApplication;
 
   try {
-    const createdApplications = await JobApplicationModal.create([
-      {
-        job: id,
-        Jobtitle: job?.title,
-        talent: req.user.userId,
-        coverLetter: coverLetter || "",
-        cv: cvPath || "",
-        portfolio: portfolioPath,
-        linkedInProfile: linkedInProfile || "",
-        skills: skills || [],
-        experienceLevel: experienceLevel || "beginner",
-        availability: availability || "",
-        locationPreferences: locationPreferences || "",
-        references: references || [],
-      },
-    ]);
-    newApplication = createdApplications[0];
+    if (existingApplication) {
+      // A prior withdrawn application already holds the unique {job, talent} slot -
+      // reactivate that same document instead of inserting a second one, which the
+      // unique index would reject.
+      existingApplication.set(applicationFields);
+      newApplication = await existingApplication.save();
+    } else {
+      const createdApplications = await JobApplicationModal.create([applicationFields]);
+      newApplication = createdApplications[0];
+    }
   } catch (error) {
     if (error.code === 11000) {
       throw new BadRequestError("You have already applied for this job");
