@@ -1,0 +1,4812 @@
+{
+  "info": {
+    "_postman_id": "c4a7e2b0-3f1d-4b6e-9c2a-careersync0001",
+    "name": "Career Sync API",
+    "description": "Complete, source-verified Postman collection for the Career Sync backend (Express + MongoDB, server/ directory). Generated directly from the route/controller/model/middleware source code as of 2026-09-03 (see POSTMAN_API_INVENTORY.md for the full endpoint audit and POSTMAN_TESTING_GUIDE.md for setup and workflow).\n\n**Base URL:** `http://localhost:4000` (server/config/swagger.js and .env.example both confirm this as the dev default; override via the `baseUrl` variable if your server runs elsewhere).\n\n**Authentication is cookie-based, not Bearer-token-based.** Login sets httpOnly, signed `accessToken`/`refreshToken`/`refreshTokenSecret` cookies; the JSON response body only ever contains `{ tokenUser: { name, userId, role } }` — there is no access/refresh token string to copy into a header. Postman's built-in cookie jar stores and resends these automatically for requests to the same `{{baseUrl}}`, so no manual wiring is required. The important consequence: the cookie jar holds ONE active session per domain, so switching between talent/employer/talent-2 requires re-running the matching 'Login - <role>' request — every folder below starts with the login(s) it needs.\n\n**Variables:** all dynamic values (baseUrl, seed credentials, and IDs captured from responses via test scripts — talentUserId, employerUserId, jobId, applicationId, organizationId, verification tokens) live as collection variables so the whole collection works with or without a separate Postman Environment selected. A companion `career-sync.postman_environment.json` is provided for convenience/override.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "Liveness/readiness probes, registered in app.js before body parsing, cookies, rate limiting, and access logging. No authentication, no request/response body.",
+      "item": [
+        {
+          "name": "Liveness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/healthz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nProcess-only liveness probe. Never touches MongoDB. Returns 200 as soon as the Node process can respond."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/healthz",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "healthz"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nProcess-only liveness probe. Never touches MongoDB. Returns 200 as soon as the Node process can respond."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Body reports ok status\", function () { pm.expect(pm.response.json().status).to.eql(\"ok\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/readyz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "readyz"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nReadiness probe — 200 only when the process is up AND MongoDB's connection state is 'connected'. Returns 503 if MongoDB is not ready."
+          },
+          "response": [
+            {
+              "name": "200 OK (DB connected)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/readyz",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "readyz"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nReadiness probe — 200 only when the process is up AND MongoDB's connection state is 'connected'. Returns 503 if MongoDB is not ready."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            },
+            {
+              "name": "503 Service Unavailable (DB not connected)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/readyz",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "readyz"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nReadiness probe — 200 only when the process is up AND MongoDB's connection state is 'connected'. Returns 503 if MongoDB is not ready."
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"error\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "description": "Registration, email verification, login/logout, and profile management. Auth is cookie-based (httpOnly, signed JWT cookies set by the server), NOT a Bearer token returned in the JSON body — see the Testing Guide's 'How authentication works' section before running anything else in this collection.",
+      "item": [
+        {
+          "name": "Register - Talent (Valid)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRegisters a talent account. `location.country`/`location.city` and `phone` (any valid international mobile format) are required for every role. Account starts unverified — the response never returns a token; a verification email is dispatched fire-and-forget (see the Testing Guide for how to retrieve the token in dev, since SMTP falls back to an Ethereal test inbox and the token/link is printed to the server console).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alicia\",\n  \"lastName\": \"Reyes\",\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\",\n  \"location\": {\n    \"country\": \"United States\",\n    \"city\": \"Austin\"\n  },\n  \"role\": \"talent\",\n  \"phone\": \"+14155550110\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "register"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nRegisters a talent account. `location.country`/`location.city` and `phone` (any valid international mobile format) are required for every role. Account starts unverified — the response never returns a token; a verification email is dispatched fire-and-forget (see the Testing Guide for how to retrieve the token in dev, since SMTP falls back to an Ethereal test inbox and the token/link is printed to the server console).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Alicia\",\n  \"lastName\": \"Reyes\",\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\",\n  \"location\": {\n    \"country\": \"United States\",\n    \"city\": \"Austin\"\n  },\n  \"role\": \"talent\",\n  \"phone\": \"+14155550110\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Success! Please check your email to verify your account\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "pm.test(\"Response has success message\", function () { pm.expect(pm.response.json().msg).to.include(\"Please check your email\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register - Talent 2 (Valid, for IDOR tests)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nA second talent account, used later to prove one applicant cannot read another applicant's CV (see Job Applications > Unauthorized: Different Talent Accesses CV).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Devon\",\n  \"lastName\": \"Kim\",\n  \"email\": \"{{talent2Email}}\",\n  \"password\": \"{{talent2Password}}\",\n  \"location\": {\n    \"country\": \"United States\",\n    \"city\": \"Austin\"\n  },\n  \"role\": \"talent\",\n  \"phone\": \"+14155550111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register - Employer (Valid)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRegisters an employer account. `companyName`, `companySize`, and `industry` are required only when `role` is `employer` (enforced in the controller, not the Mongoose schema-level `required` alone).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Morgan\",\n  \"lastName\": \"Blake\",\n  \"email\": \"{{employerEmail}}\",\n  \"password\": \"{{employerPassword}}\",\n  \"location\": {\n    \"country\": \"United States\",\n    \"city\": \"San Francisco\"\n  },\n  \"role\": \"employer\",\n  \"phone\": \"+14155550112\",\n  \"companyName\": \"NovaWorks AI\",\n  \"companySize\": \"51-200\",\n  \"industry\": \"Technology\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register - Duplicate Email (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRe-submits the talent registration with the same email. `User.email` has a unique index and the controller pre-checks with `findOne`, so this returns 400 (NOT 409 — the backend uses BadRequestError here, not a Conflict status).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alicia\",\n  \"lastName\": \"Reyes\",\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\",\n  \"location\": {\n    \"country\": \"United States\",\n    \"city\": \"Austin\"\n  },\n  \"role\": \"talent\",\n  \"phone\": \"+14155550110\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "register"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nRe-submits the talent registration with the same email. `User.email` has a unique index and the controller pre-checks with `findOne`, so this returns 400 (NOT 409 — the backend uses BadRequestError here, not a Conflict status).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Alicia\",\n  \"lastName\": \"Reyes\",\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\",\n  \"location\": {\n    \"country\": \"United States\",\n    \"city\": \"Austin\"\n  },\n  \"role\": \"talent\",\n  \"phone\": \"+14155550110\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Email already exists\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});",
+                  "pm.test(\"Error message mentions duplicate email\", function () { pm.expect(pm.response.json().msg).to.include(\"already exists\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register - Missing Required Fields (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nOmits name/lastName/location/role/phone. The controller checks these explicitly before touching the database and throws BadRequestError (400).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"incomplete@example.com\",\n  \"password\": \"somepassword\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "register"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nOmits name/lastName/location/role/phone. The controller checks these explicitly before touching the database and throws BadRequestError (400).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"incomplete@example.com\",\n  \"password\": \"somepassword\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Please provide all the values\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Email - Talent",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify-Email?verificationToken={{talentVerificationToken}}&email={{talentEmail}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-Email"
+              ],
+              "query": [
+                {
+                  "key": "verificationToken",
+                  "value": "{{talentVerificationToken}}",
+                  "disabled": false,
+                  "description": "Paste the token from the Ethereal preview link printed to the server console after Register - see Testing Guide."
+                },
+                {
+                  "key": "email",
+                  "value": "{{talentEmail}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nVerifies the talent's email using the token emailed at registration. **Manual step required**: this backend has no API to read back the verification token (that would be a security hole) — copy it from the dev SMTP preview link logged by the server, then set the `talentVerificationToken` collection variable before running this request. Login fails with 401 until this succeeds."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/verify-Email?verificationToken={{talentVerificationToken}}&email={{talentEmail}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "verify-Email"
+                  ],
+                  "query": [
+                    {
+                      "key": "verificationToken",
+                      "value": "{{talentVerificationToken}}",
+                      "disabled": false,
+                      "description": "Paste the token from the Ethereal preview link printed to the server console after Register - see Testing Guide."
+                    },
+                    {
+                      "key": "email",
+                      "value": "{{talentEmail}}",
+                      "disabled": false
+                    }
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nVerifies the talent's email using the token emailed at registration. **Manual step required**: this backend has no API to read back the verification token (that would be a security hole) — copy it from the dev SMTP preview link logged by the server, then set the `talentVerificationToken` collection variable before running this request. Login fails with 401 until this succeeds."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Email Verified\"\n}"
+            },
+            {
+              "name": "401 Unauthorized (bad/expired token)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/verify-Email?verificationToken={{talentVerificationToken}}&email={{talentEmail}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "verify-Email"
+                  ],
+                  "query": [
+                    {
+                      "key": "verificationToken",
+                      "value": "{{talentVerificationToken}}",
+                      "disabled": false,
+                      "description": "Paste the token from the Ethereal preview link printed to the server console after Register - see Testing Guide."
+                    },
+                    {
+                      "key": "email",
+                      "value": "{{talentEmail}}",
+                      "disabled": false
+                    }
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nVerifies the talent's email using the token emailed at registration. **Manual step required**: this backend has no API to read back the verification token (that would be a security hole) — copy it from the dev SMTP preview link logged by the server, then set the `talentVerificationToken` collection variable before running this request. Login fails with 401 until this succeeds."
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Verification Failed\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Email - Talent 2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify-Email?verificationToken={{talent2VerificationToken}}&email={{talent2Email}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-Email"
+              ],
+              "query": [
+                {
+                  "key": "verificationToken",
+                  "value": "{{talent2VerificationToken}}",
+                  "disabled": false
+                },
+                {
+                  "key": "email",
+                  "value": "{{talent2Email}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nSame as Verify Email - Talent, for the second talent account."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Email - Employer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify-Email?verificationToken={{employerVerificationToken}}&email={{employerEmail}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-Email"
+              ],
+              "query": [
+                {
+                  "key": "verificationToken",
+                  "value": "{{employerVerificationToken}}",
+                  "disabled": false
+                },
+                {
+                  "key": "email",
+                  "value": "{{employerEmail}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nSame as Verify Email - Talent, for the employer account."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resend Verification Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/resend-verification",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "resend-verification"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nIssues a new verification token/email for an unverified account. Rate-limited to 3 requests/hour per the global limiter. Returns 400 if the account is already verified, 401 if no account exists with that email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talentEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/resend-verification",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "resend-verification"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nIssues a new verification token/email for an unverified account. Rate-limited to 3 requests/hour per the global limiter. Returns 400 if the account is already verified, 401 if no account exists with that email.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{talentEmail}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Verification email resent. Please check your inbox.\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 401]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Invalid Password (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nCorrect email, wrong password. Returns 401 with a deliberately generic 'Invalid Credentials' message (does not reveal whether the email exists).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"WrongPassword999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nCorrect email, wrong password. Returns 401 with a deliberately generic 'Invalid Credentials' message (does not reveal whether the email exists).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"WrongPassword999\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Invalid Credentials\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401]);",
+                  "});",
+                  "pm.test(\"Does not set an accessToken cookie\", function () { pm.expect(pm.cookies.has(\"accessToken\")).to.eql(false); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Unverified Email (Negative, run before verifying)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nDemonstrates that login is blocked until email verification, regardless of correct credentials. Run this BEFORE 'Verify Email - Talent 2' to see the 401. After verifying Talent 2, this same request would succeed (moved here only for illustration — it is not part of the main flow).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talent2Email}}\",\n  \"password\": \"{{talent2Password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "401 Unauthorized (unverified)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nDemonstrates that login is blocked until email verification, regardless of correct credentials. Run this BEFORE 'Verify Email - Talent 2' to see the 401. After verifying Talent 2, this same request would succeed (moved here only for illustration — it is not part of the main flow).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{talent2Email}}\",\n  \"password\": \"{{talent2Password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Please verify your email\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Talent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nLogs in as the talent account. On success the server sets `accessToken` (httpOnly, signed) and `refreshToken`/`refreshTokenSecret` cookies — **not** a Bearer token in the JSON body. Postman's built-in cookie jar stores and resends these automatically for every subsequent request to `{{baseUrl}}`, so no manual header wiring is needed. Because the cookie jar is shared per-domain, logging in as a different role later (e.g. Login - Employer) REPLACES the active session — re-run the matching Login request whenever you switch actors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "**Auth:** Public — no session required.\n\nLogs in as the talent account. On success the server sets `accessToken` (httpOnly, signed) and `refreshToken`/`refreshTokenSecret` cookies — **not** a Bearer token in the JSON body. Postman's built-in cookie jar stores and resends these automatically for every subsequent request to `{{baseUrl}}`, so no manual header wiring is needed. Because the cookie jar is shared per-domain, logging in as a different role later (e.g. Login - Employer) REPLACES the active session — re-run the matching Login request whenever you switch actors.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"tokenUser\": {\n    \"name\": \"Alicia\",\n    \"userId\": \"665f1a2b3c4d5e6f7a8b9c0d\",\n    \"role\": \"talent\"\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Response contains tokenUser\", function () { pm.expect(json.tokenUser).to.exist; pm.expect(json.tokenUser.role).to.eql(\"talent\"); });",
+                  "pm.test(\"accessToken cookie was set\", function () { pm.expect(pm.cookies.has(\"accessToken\")).to.eql(true); });",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"talentUserId\", json.tokenUser.userId); }"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Show Current User (Talent)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/showCurrentUser",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "showCurrentUser"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nReturns the decoded JWT payload (`req.user`) for the currently authenticated user — `{ name, userId, role }`, not a full DB document."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/showCurrentUser",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "showCurrentUser"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nReturns the decoded JWT payload (`req.user`) for the currently authenticated user — `{ name, userId, role }`, not a full DB document."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"user\": {\n    \"name\": \"Alicia\",\n    \"userId\": \"665f1a2b3c4d5e6f7a8b9c0d\",\n    \"role\": \"talent\"\n  }\n}"
+            },
+            {
+              "name": "401 Unauthorized",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/showCurrentUser",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "showCurrentUser"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nReturns the decoded JWT payload (`req.user`) for the currently authenticated user — `{ name, userId, role }`, not a full DB document."
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Authentication Invalid\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"user.role is talent\", function () { pm.expect(pm.response.json().user.role).to.eql(\"talent\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update User Profile (Talent)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/updateUser",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "updateUser"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nOnly `email` and `name` are accepted. Changing the email re-locks `isVerified` to false and issues a new verification token (dispatched the same fire-and-forget way as registration). Keeping the same email here avoids re-triggering verification mid-flow.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talentEmail}}\",\n  \"name\": \"Alicia\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Password (Talent)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/updateUserPassword",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "updateUserPassword"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nRequires the current password. Rejects with 400 if `newPassword === oldPassword`. NOTE: on success, update the `talentPassword` collection variable yourself (this request does not do it automatically) so subsequent Login - Talent calls keep working.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"{{talentPassword}}\",\n  \"newPassword\": \"{{talentPassword}}NEW\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/updateUserPassword",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "updateUserPassword"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nRequires the current password. Rejects with 400 if `newPassword === oldPassword`. NOTE: on success, update the `talentPassword` collection variable yourself (this request does not do it automatically) so subsequent Login - Talent calls keep working.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"oldPassword\": \"{{talentPassword}}\",\n  \"newPassword\": \"{{talentPassword}}NEW\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Success! Password Updated.\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 401]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh-token"
+              ]
+            },
+            "description": "**Auth:** Requires the `refreshToken`/`refreshTokenSecret` cookie pair set by a prior Login request.\n\nRotates the refresh token and issues a fresh access token, using the `refreshToken`/`refreshTokenSecret` cookie pair set at login (read from `req.signedCookies`, no request body). Reusing an already-rotated refresh token is treated as compromise and revokes the whole session (`Token.isValid = false`)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});",
+                  "pm.test(\"accessToken cookie refreshed\", function () { pm.expect(pm.cookies.has(\"accessToken\")).to.eql(true); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "**Auth:** Requires any authenticated session (talent or employer) via the `accessToken` cookie.\n\nInvalidates the server-side refresh token record (`Token.isValid = false`) and clears the `accessToken`/`refreshToken`/`refreshTokenSecret` cookies. Placed at the end of the Authentication folder — run a Login request again before continuing to other folders."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/logout",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "logout"
+                  ]
+                },
+                "description": "**Auth:** Requires any authenticated session (talent or employer) via the `accessToken` cookie.\n\nInvalidates the server-side refresh token record (`Token.isValid = false`) and clears the `accessToken`/`refreshToken`/`refreshTokenSecret` cookies. Placed at the end of the Authentication folder — run a Login request again before continuing to other folders."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"user logged out!\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Organizations",
+      "description": "Employer-owned company profiles, plus a public directory and talent follow/unfollow. Mounted at /api/v1/organization WITHOUT a blanket authenticateUser at the router level (unlike Jobs/Applications/Talents) — each route in OrganizationRoutes.js declares authenticateUser individually, which is why the public/* routes need no login at all.",
+      "item": [
+        {
+          "name": "Login - Employer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRe-authenticates as the employer, replacing whatever session is currently active in Postman's cookie jar. Run this before any employer-only request below.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{employerEmail}}\",\n  \"password\": \"{{employerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"employerUserId\", json.tokenUser.userId); }",
+                  "pm.test(\"Logged in as employer\", function () { pm.expect(json.tokenUser.role).to.eql(\"employer\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Organization (Valid)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nCreates an organization owned by the authenticated employer. Capped at 4 organizations per user (`MAX_ORGS_PER_USER`) — the 5th attempt returns 403. Rate-limited to 10/hour.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"NovaWorks AI\",\n  \"description\": \"NovaWorks AI builds applied-AI tooling for engineering teams, from LLM-powered code review to internal developer copilots.\",\n  \"industry\": \"Technology\",\n  \"companySize\": \"51-200\",\n  \"headquarters\": {\n    \"city\": \"San Francisco\",\n    \"country\": \"United States\"\n  },\n  \"about\": \"We are a venture-backed applied-AI company shipping production LLM systems for enterprise engineering orgs.\",\n  \"website\": \"https://novaworks.ai\",\n  \"emailDomain\": \"novaworks.ai\",\n  \"hiringContactEmail\": \"hiring@novaworks.ai\",\n  \"phone\": \"+14155550199\",\n  \"mission\": \"Make every engineering team 10x more effective with applied AI.\",\n  \"culture\": \"Collaborative, high-autonomy, remote-friendly.\",\n  \"foundedYear\": 2019,\n  \"organizationType\": \"Private\",\n  \"careersPage\": \"https://novaworks.ai/careers\",\n  \"socialLinks\": {\n    \"linkedin\": \"https://linkedin.com/company/novaworks-ai\",\n    \"twitter\": \"https://twitter.com/novaworksai\"\n  },\n  \"locations\": [\n    \"San Francisco, CA\",\n    \"Remote - US\"\n  ],\n  \"awards\": [\n    \"Forbes AI 50 (2024)\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/organization",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "organization"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nCreates an organization owned by the authenticated employer. Capped at 4 organizations per user (`MAX_ORGS_PER_USER`) — the 5th attempt returns 403. Rate-limited to 10/hour.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"NovaWorks AI\",\n  \"description\": \"NovaWorks AI builds applied-AI tooling for engineering teams, from LLM-powered code review to internal developer copilots.\",\n  \"industry\": \"Technology\",\n  \"companySize\": \"51-200\",\n  \"headquarters\": {\n    \"city\": \"San Francisco\",\n    \"country\": \"United States\"\n  },\n  \"about\": \"We are a venture-backed applied-AI company shipping production LLM systems for enterprise engineering orgs.\",\n  \"website\": \"https://novaworks.ai\",\n  \"emailDomain\": \"novaworks.ai\",\n  \"hiringContactEmail\": \"hiring@novaworks.ai\",\n  \"phone\": \"+14155550199\",\n  \"mission\": \"Make every engineering team 10x more effective with applied AI.\",\n  \"culture\": \"Collaborative, high-autonomy, remote-friendly.\",\n  \"foundedYear\": 2019,\n  \"organizationType\": \"Private\",\n  \"careersPage\": \"https://novaworks.ai/careers\",\n  \"socialLinks\": {\n    \"linkedin\": \"https://linkedin.com/company/novaworks-ai\",\n    \"twitter\": \"https://twitter.com/novaworksai\"\n  },\n  \"locations\": [\n    \"San Francisco, CA\",\n    \"Remote - US\"\n  ],\n  \"awards\": [\n    \"Forbes AI 50 (2024)\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Organization created successfully\",\n  \"newOrganization\": {\n    \"_id\": \"665f...\",\n    \"name\": \"NovaWorks AI\",\n    \"hqLocation\": \"San Francisco, United States\"\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json.newOrganization && json.newOrganization._id) { pm.collectionVariables.set(\"organizationId\", json.newOrganization._id); }",
+                  "pm.test(\"Organization has an id\", function () { pm.expect(json.newOrganization._id).to.exist; });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Organization - Missing Required Fields (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOmits description/industry/companySize/headquarters/about/hiringContactEmail/emailDomain. All are required per the controller's explicit checks.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Incomplete Org\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/organization",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "organization"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOmits description/industry/companySize/headquarters/about/hiringContactEmail/emailDomain. All are required per the controller's explicit checks.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Incomplete Org\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"All required organization fields must be provided\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Organizations (Employer, own)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nLists every organization created by the authenticated employer (never other employers' organizations)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Organization",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/{{organizationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "{{organizationId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nPartial update. Only the organization's own creator (`createdBy`) may update it — `checkPermissions` throws 403 otherwise.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mission\": \"Make every engineering team 10x more effective with applied AI, safely.\",\n  \"companySize\": \"201-500\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Organization Followers (Employer, owner-only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/{{organizationId}}/followers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "{{organizationId}}",
+                "followers"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nManagement view of the follower list — restricted to the owning employer (contrast with the public follower COUNT endpoint below)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Public Organizations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/public",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "public"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nPublic directory of every organization, no authentication required."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Single Public Organization",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/public/{{organizationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "public",
+                "{{organizationId}}"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nPublic organization profile page data."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Public Follower Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/public-organizations/{{organizationId}}/followers/count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "public-organizations",
+                "{{organizationId}}",
+                "followers",
+                "count"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nNOTE: the live route (OrganizationRoutes.js) mounts this at `/public-organizations/:id/followers/count`, which differs from this same handler's Swagger annotation (`/organization/{id}/followers/count`) in the source comments — the path below is what the server actually serves. Returns the full `followers` subdocument array (not just a count, despite the route name), scoped to only the `followers` field."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Talent (before Follow Organization)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nSwitches the active Postman session back to talent so the next requests (Follow/Check-following, which are talent-only routes) run as a talent user, not the employer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"talentUserId\", json.tokenUser.userId); }"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Follow Organization (Talent)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/{{organizationId}}/follow",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "{{organizationId}}",
+                "follow"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nAdds the caller to `Organization.followers`. Idempotent — following again returns 200 'Already following' instead of erroring."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check If Following (Talent)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/{{organizationId}}/is-following",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "{{organizationId}}",
+                "is-following"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nNOTE: the live route is `/organization/{id}/is-following` (see OrganizationRoutes.js); the controller's Swagger annotation documents `/organization/{id}/check-following` instead — the path below is what the server actually serves."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"isFollowing is boolean\", function () { pm.expect(pm.response.json().isFollowing).to.be.a(\"boolean\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unauthorized: Talent Views Employer-Only Followers List (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/{{organizationId}}/followers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "{{organizationId}}",
+                "followers"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nIDOR/role-boundary check: `authorizePermissions('employer')` on this route must reject a talent session with 403, even though the same talent is an authenticated user."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([403]);",
+                  "});",
+                  "pm.test(\"Forbidden message present\", function () { pm.expect(pm.response.json().msg).to.exist; });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Jobs - Employer",
+      "description": "Job posting CRUD, scoped to the authenticated employer's own jobs (createdBy). Mounted at /api/v1/jobs behind a blanket authenticateUser in app.js, then authorizePermissions('employer') per route.",
+      "item": [
+        {
+          "name": "Login - Employer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRe-authenticates as employer, replacing whatever session is currently active in Postman's shared cookie jar. Run this immediately before any employer-only request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{employerEmail}}\",\n  \"password\": \"{{employerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Logged in with expected role\", function () { pm.expect(json.tokenUser.role).to.eql(\"employer\"); });",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"employerUserId\", json.tokenUser.userId); }"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Job (Valid)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nCreates a job posting owned by the authenticated employer. `title`/`company`/`jobType`/`jobLocation`/`description` are required by the controller; `requiredSkills`/`preferredSkills`/`requiredExperience`/`workMode`/`salaryRange` are optional structured fields consumed later by the matching engine (see Jobs - Talent > Get Job Match Score). Creating a job fire-and-forget triggers async job-intelligence processing (`Job.intelligenceProcessingStatus`). Rate-limited to 30/hour.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Senior React / Full-Stack Engineer\",\n  \"company\": \"NovaWorks AI\",\n  \"position\": \"Senior Software Engineer\",\n  \"jobType\": \"full-time\",\n  \"jobLocation\": {\n    \"country\": \"United States\",\n    \"city\": \"San Francisco\"\n  },\n  \"description\": \"We are looking for a Senior Full-Stack Engineer to help build our applied-AI developer platform. You will own features end-to-end across a React/TypeScript frontend and a Node.js/Express backend, and collaborate closely with our AI team on LLM-powered features (RAG pipelines, embeddings, semantic search).\",\n  \"applicationDeadline\": \"2027-12-31T23:59:59.000Z\",\n  \"requiredSkills\": [\n    \"React\",\n    \"TypeScript\",\n    \"JavaScript\",\n    \"Redux\",\n    \"Node.js\"\n  ],\n  \"preferredSkills\": [\n    \"Docker\",\n    \"AWS\",\n    \"Next.js\",\n    \"LangChain\"\n  ],\n  \"requiredExperience\": 5,\n  \"workMode\": \"remote\",\n  \"salaryRange\": {\n    \"min\": 150000,\n    \"max\": 190000,\n    \"currency\": \"USD\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nCreates a job posting owned by the authenticated employer. `title`/`company`/`jobType`/`jobLocation`/`description` are required by the controller; `requiredSkills`/`preferredSkills`/`requiredExperience`/`workMode`/`salaryRange` are optional structured fields consumed later by the matching engine (see Jobs - Talent > Get Job Match Score). Creating a job fire-and-forget triggers async job-intelligence processing (`Job.intelligenceProcessingStatus`). Rate-limited to 30/hour.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Senior React / Full-Stack Engineer\",\n  \"company\": \"NovaWorks AI\",\n  \"position\": \"Senior Software Engineer\",\n  \"jobType\": \"full-time\",\n  \"jobLocation\": {\n    \"country\": \"United States\",\n    \"city\": \"San Francisco\"\n  },\n  \"description\": \"We are looking for a Senior Full-Stack Engineer to help build our applied-AI developer platform. You will own features end-to-end across a React/TypeScript frontend and a Node.js/Express backend, and collaborate closely with our AI team on LLM-powered features (RAG pipelines, embeddings, semantic search).\",\n  \"applicationDeadline\": \"2027-12-31T23:59:59.000Z\",\n  \"requiredSkills\": [\n    \"React\",\n    \"TypeScript\",\n    \"JavaScript\",\n    \"Redux\",\n    \"Node.js\"\n  ],\n  \"preferredSkills\": [\n    \"Docker\",\n    \"AWS\",\n    \"Next.js\",\n    \"LangChain\"\n  ],\n  \"requiredExperience\": 5,\n  \"workMode\": \"remote\",\n  \"salaryRange\": {\n    \"min\": 150000,\n    \"max\": 190000,\n    \"currency\": \"USD\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"job\": {\n    \"_id\": \"665f...\",\n    \"title\": \"Senior React / Full-Stack Engineer\",\n    \"company\": \"NovaWorks AI\",\n    \"jobType\": \"full-time\",\n    \"isClosed\": false,\n    \"intelligenceProcessingStatus\": \"pending\",\n    \"createdBy\": \"665f...\"\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json.job && json.job._id) { pm.collectionVariables.set(\"jobId\", json.job._id); }",
+                  "pm.test(\"Job has an id and starts open\", function () { pm.expect(json.job._id).to.exist; pm.expect(json.job.isClosed).to.eql(false); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Job - Invalid Payload (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOmits company/jobType/jobLocation/description, all required by the controller before it ever touches Mongoose.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Missing Fields Job\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOmits company/jobType/jobLocation/description, all required by the controller before it ever touches Mongoose.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Missing Fields Job\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Please provide all required job fields\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Job - Deadline in the Past (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\n`applicationDeadline` must not already be in the past.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Backend Engineer\",\n  \"company\": \"NovaWorks AI\",\n  \"jobType\": \"full-time\",\n  \"jobLocation\": {\n    \"country\": \"United States\",\n    \"city\": \"San Francisco\"\n  },\n  \"description\": \"Backend role.\",\n  \"applicationDeadline\": \"2020-01-01T00:00:00.000Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\n`applicationDeadline` must not already be in the past.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Backend Engineer\",\n  \"company\": \"NovaWorks AI\",\n  \"jobType\": \"full-time\",\n  \"jobLocation\": {\n    \"country\": \"United States\",\n    \"city\": \"San Francisco\"\n  },\n  \"description\": \"Backend role.\",\n  \"applicationDeadline\": \"2020-01-01T00:00:00.000Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Application deadline cannot be in the past\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Jobs (Employer, own)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nLists jobs created by the authenticated employer only. Supports `search`, `jobStatus`, `jobType`, `sort`, `page`, `limit`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Jobs - Filtered & Paginated",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs?search=React&jobType=full-time&jobStatus=all&sort=newest&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "React",
+                  "disabled": false
+                },
+                {
+                  "key": "jobType",
+                  "value": "full-time",
+                  "disabled": false
+                },
+                {
+                  "key": "jobStatus",
+                  "value": "all",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "newest",
+                  "disabled": false
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nSame endpoint as above with every supported query parameter populated."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Pagination fields present\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"totalJobs\"); pm.expect(j).to.have.property(\"numOfPages\"); pm.expect(j).to.have.property(\"currentPage\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job By Id (Employer, owner)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOnly the employer who created the job may view it via this route (`checkPermissions`) — a different employer gets 403."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "{{jobId}}"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOnly the employer who created the job may view it via this route (`checkPermissions`) — a different employer gets 403."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"job\": {\n    \"_id\": \"665f...\",\n    \"title\": \"Senior React / Full-Stack Engineer\"\n  }\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "{{jobId}}"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOnly the employer who created the job may view it via this route (`checkPermissions`) — a different employer gets 403."
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Job not found\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job - Not Found (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{nonExistentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{nonExistentId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nSyntactically valid ObjectId that does not exist in the database."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Job",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nPartial update, scoped to `{ _id: jobId, createdBy: employerUserId }` — updating another employer's job 404s rather than 403ing (ownership is baked into the query filter itself). Changing `description` resets `intelligenceProcessingStatus` to `pending` and re-triggers async reprocessing.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requiredExperience\": 6,\n  \"salaryRange\": {\n    \"min\": 160000,\n    \"max\": 200000,\n    \"currency\": \"USD\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Jobs - Talent",
+      "description": "Talent-facing job discovery (keyword + semantic search), the candidate's own match score against a job, and applying with a CV upload. All routes require authorizePermissions('talent').",
+      "item": [
+        {
+          "name": "Login - Talent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRe-authenticates as talent, replacing whatever session is currently active in Postman's shared cookie jar. Run this immediately before any talent-only request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Logged in with expected role\", function () { pm.expect(json.tokenUser.role).to.eql(\"talent\"); });",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"talentUserId\", json.tokenUser.userId); }"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search Jobs (Talent, keyword)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/search?search=React&jobType=full-time&country=United States&sort=newest&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "React",
+                  "disabled": false
+                },
+                {
+                  "key": "jobType",
+                  "value": "full-time",
+                  "disabled": false
+                },
+                {
+                  "key": "country",
+                  "value": "United States",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "newest",
+                  "disabled": false
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nBrowses all OPEN jobs across every employer (`isClosed: false`, deadline not passed) — plain regex keyword search, not the semantic endpoint below."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Semantic Job Search - Basic Query",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/search/semantic?q=Senior React Developer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "search",
+                "semantic"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Senior React Developer",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nEmbeds `q` and ranks currently-active jobs by cosine similarity against each job's stored embedding (populated asynchronously by job-intelligence processing — a job created seconds ago may not have an embedding yet and will simply be excluded, not error). `q` must be 2-500 characters."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response has jobs array\", function () { pm.expect(pm.response.json()).to.have.property(\"jobs\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Semantic Job Search - With Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/search/semantic?q=AI / LLM engineer with RAG experience&workMode=remote&jobType=full-time&threshold=0.5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "search",
+                "semantic"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "AI / LLM engineer with RAG experience",
+                  "disabled": false
+                },
+                {
+                  "key": "workMode",
+                  "value": "remote",
+                  "disabled": false
+                },
+                {
+                  "key": "jobType",
+                  "value": "full-time",
+                  "disabled": false
+                },
+                {
+                  "key": "threshold",
+                  "value": "0.5",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nSame endpoint with every supported filter: `workMode` (remote/hybrid/onsite/all), `jobType` (.../all), `threshold` (minimum cosine similarity, 0-1)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Semantic Job Search - Empty Query (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/search/semantic?q=a",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "search",
+                "semantic"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "a",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\n`q` below the 2-character minimum."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Semantic Job Search - Invalid Threshold (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/search/semantic?q=Full Stack Engineer&threshold=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "search",
+                "semantic"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Full Stack Engineer",
+                  "disabled": false
+                },
+                {
+                  "key": "threshold",
+                  "value": "2",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\n`threshold` must be between 0 and 1."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job Match Score (Pre-Application)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/match",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{jobId}}",
+                "match"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nComputes a deterministic, explainable match between the CALLER's own CandidateProfile and this job — never accepts a candidate id in the request (no IDOR surface). Since no CV has been uploaded yet, `candidateProfileStatus` will read `not_found` and the score is best-effort from job data alone. Weights/algorithm are versioned (`matchingAlgorithmVersion`) — this collection intentionally does not hardcode an expected score, since it depends on live AI-derived profile data (see Testing Guide's Matching section)."
+          },
+          "response": [
+            {
+              "name": "200 OK (no CandidateProfile yet)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/match",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "{{jobId}}",
+                    "match"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nComputes a deterministic, explainable match between the CALLER's own CandidateProfile and this job — never accepts a candidate id in the request (no IDOR surface). Since no CV has been uploaded yet, `candidateProfileStatus` will read `not_found` and the score is best-effort from job data alone. Weights/algorithm are versioned (`matchingAlgorithmVersion`) — this collection intentionally does not hardcode an expected score, since it depends on live AI-derived profile data (see Testing Guide's Matching section)."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"match\": {\n    \"matchScore\": 41,\n    \"componentScores\": {\n      \"requiredSkills\": 0,\n      \"preferredSkills\": 0,\n      \"experience\": 0,\n      \"seniority\": 0,\n      \"domain\": 0,\n      \"preferences\": 0,\n      \"semantic\": 0\n    },\n    \"matchedSkills\": [],\n    \"missingRequiredSkills\": [\n      \"React\",\n      \"TypeScript\",\n      \"JavaScript\",\n      \"Redux\",\n      \"Node.js\"\n    ],\n    \"matchingAlgorithmVersion\": \"v1\",\n    \"candidateProfileStatus\": \"not_found\",\n    \"jobProfileStatus\": \"pending\"\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});",
+                  "pm.test(\"Match has expected shape\", function () { const j = pm.response.json(); pm.expect(j.match).to.have.property(\"matchScore\"); pm.expect(j.match).to.have.property(\"candidateProfileStatus\"); pm.expect(j.match).to.have.property(\"jobProfileStatus\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unauthorized: Talent Creates a Job (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nRole-boundary check: `POST /jobs` is guarded by `authorizePermissions('employer')` — a talent session must get 403, not 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Should be rejected\",\n  \"company\": \"X\",\n  \"jobType\": \"full-time\",\n  \"jobLocation\": {\n    \"country\": \"US\",\n    \"city\": \"NYC\"\n  },\n  \"description\": \"n/a\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([403]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apply for Job (Valid, multipart CV upload)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/applyForJob/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "applyForJob",
+                "{{jobId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nBody must be `multipart/form-data` (not JSON) — `cv` is the only required field, handled by Multer (`fileuploader.js`): PDF/DOC/DOCX only, 5MB max, disk-stored under `uploads/cvs/`. Fire-and-forget triggers async resume processing (`JobApplication.resumeProcessingStatus`), which populates/overwrites the caller's single CandidateProfile. Rate-limited to 20/hour. **You must select a file for the `cv` field manually in Postman before sending** — see description above.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "cv",
+                  "type": "file",
+                  "src": [],
+                  "description": "REQUIRED. Select a local PDF/DOC/DOCX file (max 5MB). A ready-made sample exists in the repo at server/tests/fixtures/valid-sample.pdf."
+                },
+                {
+                  "key": "coverLetter",
+                  "type": "text",
+                  "value": "I've spent the last 6 years building production React/Node systems and would love to bring that to NovaWorks' AI developer platform."
+                },
+                {
+                  "key": "portfolio",
+                  "type": "text",
+                  "value": "https://alicia-reyes.dev"
+                },
+                {
+                  "key": "linkedInProfile",
+                  "type": "text",
+                  "value": "https://linkedin.com/in/alicia-reyes-dev"
+                },
+                {
+                  "key": "skills",
+                  "type": "text",
+                  "value": "React",
+                  "description": "Repeat this key once per skill for an array, e.g. skills=React, skills=TypeScript, skills=Node.js"
+                },
+                {
+                  "key": "skills",
+                  "type": "text",
+                  "value": "TypeScript"
+                },
+                {
+                  "key": "skills",
+                  "type": "text",
+                  "value": "Node.js"
+                },
+                {
+                  "key": "experienceLevel",
+                  "type": "text",
+                  "value": "expert"
+                },
+                {
+                  "key": "availability",
+                  "type": "text",
+                  "value": "Available in 2 weeks"
+                },
+                {
+                  "key": "locationPreferences",
+                  "type": "text",
+                  "value": "Remote or San Francisco, CA"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/applyForJob/{{jobId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "applyForJob",
+                    "{{jobId}}"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nBody must be `multipart/form-data` (not JSON) — `cv` is the only required field, handled by Multer (`fileuploader.js`): PDF/DOC/DOCX only, 5MB max, disk-stored under `uploads/cvs/`. Fire-and-forget triggers async resume processing (`JobApplication.resumeProcessingStatus`), which populates/overwrites the caller's single CandidateProfile. Rate-limited to 20/hour. **You must select a file for the `cv` field manually in Postman before sending** — see description above.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "cv",
+                      "type": "file",
+                      "src": [],
+                      "description": "REQUIRED. Select a local PDF/DOC/DOCX file (max 5MB). A ready-made sample exists in the repo at server/tests/fixtures/valid-sample.pdf."
+                    },
+                    {
+                      "key": "coverLetter",
+                      "type": "text",
+                      "value": "I've spent the last 6 years building production React/Node systems and would love to bring that to NovaWorks' AI developer platform."
+                    },
+                    {
+                      "key": "portfolio",
+                      "type": "text",
+                      "value": "https://alicia-reyes.dev"
+                    },
+                    {
+                      "key": "linkedInProfile",
+                      "type": "text",
+                      "value": "https://linkedin.com/in/alicia-reyes-dev"
+                    },
+                    {
+                      "key": "skills",
+                      "type": "text",
+                      "value": "React",
+                      "description": "Repeat this key once per skill for an array, e.g. skills=React, skills=TypeScript, skills=Node.js"
+                    },
+                    {
+                      "key": "skills",
+                      "type": "text",
+                      "value": "TypeScript"
+                    },
+                    {
+                      "key": "skills",
+                      "type": "text",
+                      "value": "Node.js"
+                    },
+                    {
+                      "key": "experienceLevel",
+                      "type": "text",
+                      "value": "expert"
+                    },
+                    {
+                      "key": "availability",
+                      "type": "text",
+                      "value": "Available in 2 weeks"
+                    },
+                    {
+                      "key": "locationPreferences",
+                      "type": "text",
+                      "value": "Remote or San Francisco, CA"
+                    }
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Successfully applied for the job\",\n  \"application\": {\n    \"_id\": \"665f...\",\n    \"job\": \"665f...\",\n    \"talent\": \"665f...\",\n    \"status\": \"pending\",\n    \"resumeProcessingStatus\": \"pending\",\n    \"cv\": \"/uploads/cvs/1730000000-123456789.pdf\"\n  }\n}"
+            },
+            {
+              "name": "400 Bad Request (missing cv)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/applyForJob/{{jobId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "applyForJob",
+                    "{{jobId}}"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nBody must be `multipart/form-data` (not JSON) — `cv` is the only required field, handled by Multer (`fileuploader.js`): PDF/DOC/DOCX only, 5MB max, disk-stored under `uploads/cvs/`. Fire-and-forget triggers async resume processing (`JobApplication.resumeProcessingStatus`), which populates/overwrites the caller's single CandidateProfile. Rate-limited to 20/hour. **You must select a file for the `cv` field manually in Postman before sending** — see description above.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "cv",
+                      "type": "file",
+                      "src": [],
+                      "description": "REQUIRED. Select a local PDF/DOC/DOCX file (max 5MB). A ready-made sample exists in the repo at server/tests/fixtures/valid-sample.pdf."
+                    },
+                    {
+                      "key": "coverLetter",
+                      "type": "text",
+                      "value": "I've spent the last 6 years building production React/Node systems and would love to bring that to NovaWorks' AI developer platform."
+                    },
+                    {
+                      "key": "portfolio",
+                      "type": "text",
+                      "value": "https://alicia-reyes.dev"
+                    },
+                    {
+                      "key": "linkedInProfile",
+                      "type": "text",
+                      "value": "https://linkedin.com/in/alicia-reyes-dev"
+                    },
+                    {
+                      "key": "skills",
+                      "type": "text",
+                      "value": "React",
+                      "description": "Repeat this key once per skill for an array, e.g. skills=React, skills=TypeScript, skills=Node.js"
+                    },
+                    {
+                      "key": "skills",
+                      "type": "text",
+                      "value": "TypeScript"
+                    },
+                    {
+                      "key": "skills",
+                      "type": "text",
+                      "value": "Node.js"
+                    },
+                    {
+                      "key": "experienceLevel",
+                      "type": "text",
+                      "value": "expert"
+                    },
+                    {
+                      "key": "availability",
+                      "type": "text",
+                      "value": "Available in 2 weeks"
+                    },
+                    {
+                      "key": "locationPreferences",
+                      "type": "text",
+                      "value": "Remote or San Francisco, CA"
+                    }
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Please attach your cv\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 400]);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.application && json.application._id) { pm.collectionVariables.set(\"applicationId\", json.application._id); }",
+                  "  pm.test(\"Application created with pending resume processing\", function () { pm.expect(json.application.resumeProcessingStatus).to.eql(\"pending\"); });",
+                  "}"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apply for Job - Duplicate Application (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/applyForJob/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "applyForJob",
+                "{{jobId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nRe-applying to the same job as the same talent. `JobApplication` has a unique `(job, talent)` index — this returns 400 either from the pre-check or the resulting E11000 duplicate-key error.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "cv",
+                  "type": "file",
+                  "src": [],
+                  "description": "Select the same or another PDF/DOC/DOCX file."
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apply for Job - Missing CV (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/applyForJob/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "applyForJob",
+                "{{jobId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nOmits the required `cv` file field entirely.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "coverLetter",
+                  "type": "text",
+                  "value": "Forgot to attach my CV."
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job Match Score (Post-Application)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/match",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{jobId}}",
+                "match"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nRe-run after applying (and after async resume processing completes) to see `candidateProfileStatus` move from `not_found` through `pending`/`processing` to `completed`, and the score reflect the extracted CandidateProfile."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Job Applications",
+      "description": "Viewing/managing submitted applications, updating status, downloading CVs, and withdrawing. Mounted at /api/v1/applications behind a blanket authenticateUser; individual routes then split by role or by in-controller ownership checks (the CV download route intentionally has NO authorizePermissions — talent-vs-employer access is checked inside the controller).",
+      "item": [
+        {
+          "name": "Login - Talent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRe-authenticates as talent, replacing whatever session is currently active in Postman's shared cookie jar. Run this immediately before any talent-only request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talentEmail}}\",\n  \"password\": \"{{talentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Logged in with expected role\", function () { pm.expect(json.tokenUser.role).to.eql(\"talent\"); });",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"talentUserId\", json.tokenUser.userId); }"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Applications (Talent)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "my"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nEvery application the caller has submitted, with the parent `job` populated. Uses the route `/my` — note the Swagger annotation on this handler documents `/my-applications` instead; the path below is what the server actually serves."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/applications/my",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "applications",
+                    "my"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nEvery application the caller has submitted, with the parent `job` populated. Uses the route `/my` — note the Swagger annotation on this handler documents `/my-applications` instead; the path below is what the server actually serves."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"TotalSubmittedApplications\": 1,\n  \"applications\": [\n    {\n      \"_id\": \"665f...\",\n      \"status\": \"pending\",\n      \"resumeProcessingStatus\": \"processing\",\n      \"job\": {\n        \"_id\": \"665f...\",\n        \"title\": \"Senior React / Full-Stack Engineer\"\n      }\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response has applications array\", function () { pm.expect(pm.response.json()).to.have.property(\"applications\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Withdraw Application (Talent)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/{{applicationId}}/withdraw",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "{{applicationId}}",
+                "withdraw"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nOnly the applicant may withdraw their own application, and only while status is still `pending` or `under review` — run this BEFORE any employer status update below, otherwise it 400s (see the negative note on Update Application Status)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/applications/{{applicationId}}/withdraw",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "applications",
+                    "{{applicationId}}",
+                    "withdraw"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nOnly the applicant may withdraw their own application, and only while status is still `pending` or `under review` — run this BEFORE any employer status update below, otherwise it 400s (see the negative note on Update Application Status)."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Application withdrawn successfully\"\n}"
+            },
+            {
+              "name": "400 Bad Request (already decided)",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/applications/{{applicationId}}/withdraw",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "applications",
+                    "{{applicationId}}",
+                    "withdraw"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nOnly the applicant may withdraw their own application, and only while status is still `pending` or `under review` — run this BEFORE any employer status update below, otherwise it 400s (see the negative note on Update Application Status)."
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"You cannot withdraw after decision has been made\",\n  \"requestId\": \"...\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download Application CV (Talent, own)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/{{applicationId}}/cv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "{{applicationId}}",
+                "cv"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nStreams the PDF/DOC/DOCX file. Only the applicant who submitted it or the employer who owns the job may access it — never served publicly. In Postman, use 'Send and Download' to save the binary response."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Employer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRe-authenticates as employer, replacing whatever session is currently active in Postman's shared cookie jar. Run this immediately before any employer-only request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{employerEmail}}\",\n  \"password\": \"{{employerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Logged in with expected role\", function () { pm.expect(json.tokenUser.role).to.eql(\"employer\"); });",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"employerUserId\", json.tokenUser.userId); }"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job Applications (Employer, with match scores)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/job/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "job",
+                "{{jobId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOnly the employer who owns the job may list its applicants (`checkPermissions`). Each applicant is annotated with a `match` object — the same shape as GET /jobs/{jobId}/match — computed in one batched query (no N+1)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});",
+                  "pm.test(\"Applications include a match object\", function () { const j = pm.response.json(); if (j.applications && j.applications.length) { pm.expect(j.applications[0]).to.have.property(\"match\"); } });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Application Status (Employer)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/{{jobId}}/{{talentUserId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "{{jobId}}",
+                "{{talentUserId}}",
+                "status"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\n`status` must be one of pending/under review/shortlisted/interview/rejected. Path uses `jobId` + `talentUserId` (the applicant's user id) rather than the application id. Only the owning employer may update it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shortlisted\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/applications/{{jobId}}/{{talentUserId}}/status",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "applications",
+                    "{{jobId}}",
+                    "{{talentUserId}}",
+                    "status"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\n`status` must be one of pending/under review/shortlisted/interview/rejected. Path uses `jobId` + `talentUserId` (the applicant's user id) rather than the application id. Only the owning employer may update it.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"shortlisted\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Application status updated successfully\",\n  \"status\": \"shortlisted\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 404]);",
+                  "});",
+                  "pm.test(\"Status echoed back\", function () { if (pm.response.code === 200) { pm.expect(pm.response.json().status).to.eql(\"shortlisted\"); } });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Application Status - Invalid Status (Negative)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/{{jobId}}/{{talentUserId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "{{jobId}}",
+                "{{talentUserId}}",
+                "status"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\n`status` outside the allowed enum.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"super-interested\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download Application CV (Employer, owning job)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/{{applicationId}}/cv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "{{applicationId}}",
+                "cv"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nSame CV, accessed as the employer who owns the job it was submitted to."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Talent 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nSwitches the session to the SECOND talent account (registered/verified in the Authentication folder), which never applied for this job and never submitted this CV.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{talent2Email}}\",\n  \"password\": \"{{talent2Password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Logged in with expected role\", function () { pm.expect(json.tokenUser.role).to.eql(\"talent\"); });",
+                  "// no id capture needed"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unauthorized: Different Talent Accesses CV (Negative, IDOR check)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/{{applicationId}}/cv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "{{applicationId}}",
+                "cv"
+              ]
+            },
+            "description": "**Auth:** Requires an active session for the SECOND talent account (Talent 2) — run Login - Talent 2 first.\n\nIDOR check: Talent 2 is authenticated but is neither the applicant nor the owning employer for this application — must get 403."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([403]);",
+                  "});",
+                  "pm.test(\"Forbidden message present\", function () { pm.expect(pm.response.json().msg).to.include(\"not authorized\"); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Talents (Employer)",
+      "description": "Employer-side views of the talents who applied to their jobs, plus a CSV export. Mounted at /api/v1/talents behind a blanket authenticateUser, then authorizePermissions('employer') on every route.",
+      "item": [
+        {
+          "name": "Login - Employer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRe-authenticates as employer, replacing whatever session is currently active in Postman's shared cookie jar. Run this immediately before any employer-only request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{employerEmail}}\",\n  \"password\": \"{{employerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Logged in with expected role\", function () { pm.expect(json.tokenUser.role).to.eql(\"employer\"); });",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"employerUserId\", json.tokenUser.userId); }"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Talents (Employer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/talents?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "talents"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nEvery applicant across every job posted by this employer, each application populated with `talent` (name/email/phone/profileImage) and `job` (title/company/position)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Talent By Id (Employer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/talents/{{talentUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "talents",
+                "{{talentUserId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nAll applications this specific talent submitted to THIS employer's jobs only — 404s if the talent never applied to any of the caller's jobs (not a generic 'user lookup')."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Talent By Id - Not Found (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/talents/{{nonExistentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "talents",
+                "{{nonExistentId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nA syntactically valid user id that never applied to any of this employer's jobs."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Export Applications to CSV (Employer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/talents/export-applications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "talents",
+                "export-applications"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nNOTE: the live route (talentRoutes.js) is `/talents/export-applications`, which differs from this handler's Swagger annotation (`/talents/export`) — the path below is what the server actually serves. Rate-limited to 10/hour; capped at 5000 records. Returns `text/csv` with a `Content-Disposition: attachment` header, or a JSON `{ msg }` if there are zero applications to export."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Content-Type is csv or json\", function () { const ct = pm.response.headers.get(\"Content-Type\") || \"\"; pm.expect(ct.includes(\"csv\") || ct.includes(\"json\")).to.eql(true); });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup (Optional, Run Last)",
+      "description": "Destructive/state-changing requests deliberately kept out of the main flow so they don't interfere with earlier folders (closing/deleting the job created in 'Jobs - Employer' would break every later request that depends on {{jobId}}). Run this folder only once you're done exercising the rest of the collection.",
+      "item": [
+        {
+          "name": "Login - Employer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Auth:** Public — no session required.\n\nRe-authenticates as employer, replacing whatever session is currently active in Postman's shared cookie jar. Run this immediately before any employer-only request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{employerEmail}}\",\n  \"password\": \"{{employerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Logged in with expected role\", function () { pm.expect(json.tokenUser.role).to.eql(\"employer\"); });",
+                  "if (json.tokenUser && json.tokenUser.userId) { pm.collectionVariables.set(\"employerUserId\", json.tokenUser.userId); }"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Close Job for Applications",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/close",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{jobId}}",
+                "close"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nSets `isClosed: true` so the job stops accepting applications and drops out of talent-facing search. Kept in Cleanup (not the Jobs - Employer folder) so it doesn't accidentally block the Apply for Job requests earlier in a full collection run."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/close",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "{{jobId}}",
+                    "close"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nSets `isClosed: true` so the job stops accepting applications and drops out of talent-facing search. Kept in Cleanup (not the Jobs - Employer folder) so it doesn't accidentally block the Apply for Job requests earlier in a full collection run."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Job closed for applications\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nDeletes the job and, atomically where the deployment supports multi-document transactions, its JobApplications and JobProfile too. Only the owning employer may delete it."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "{{jobId}}"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nDeletes the job and, atomically where the deployment supports multi-document transactions, its JobApplications and JobProfile too. Only the owning employer may delete it."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"job deleted Successfully\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Organization",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/organization/{{organizationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "organization",
+                "{{organizationId}}"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOnly the owning employer may delete their organization."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/organization/{{organizationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "organization",
+                    "{{organizationId}}"
+                  ]
+                },
+                "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nOnly the owning employer may delete their organization."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"msg\": \"Organization deleted successfully\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000",
+      "type": "string",
+      "description": "Dev server origin (server/config/swagger.js + .env.example PORT=4000)."
+    },
+    {
+      "key": "talentEmail",
+      "value": "alicia.reyes.careersync@example.com",
+      "type": "string",
+      "description": "Seed talent account email. Must be globally unique in the DB — change this before re-running the collection against a database that already has this user."
+    },
+    {
+      "key": "talentPassword",
+      "value": "TalentPass123",
+      "type": "string",
+      "description": "Min length 5 per User schema."
+    },
+    {
+      "key": "talentVerificationToken",
+      "value": "",
+      "type": "string",
+      "description": "Paste from the Ethereal preview link printed to the server console after Register - Talent (see Testing Guide)."
+    },
+    {
+      "key": "talentUserId",
+      "value": "",
+      "type": "string",
+      "description": "Auto-populated by Login - Talent's test script."
+    },
+    {
+      "key": "talent2Email",
+      "value": "devon.kim.careersync@example.com",
+      "type": "string",
+      "description": "Second talent account, used only for IDOR/unauthorized-access negative tests."
+    },
+    {
+      "key": "talent2Password",
+      "value": "Talent2Pass123",
+      "type": "string"
+    },
+    {
+      "key": "talent2VerificationToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employerEmail",
+      "value": "morgan.blake.careersync@example.com",
+      "type": "string",
+      "description": "Seed employer account email. Must be globally unique in the DB."
+    },
+    {
+      "key": "employerPassword",
+      "value": "EmployerPass123",
+      "type": "string"
+    },
+    {
+      "key": "employerVerificationToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employerUserId",
+      "value": "",
+      "type": "string",
+      "description": "Auto-populated by Login - Employer's test script."
+    },
+    {
+      "key": "organizationId",
+      "value": "",
+      "type": "string",
+      "description": "Auto-populated by Create Organization's test script."
+    },
+    {
+      "key": "jobId",
+      "value": "",
+      "type": "string",
+      "description": "Auto-populated by Create Job's test script."
+    },
+    {
+      "key": "applicationId",
+      "value": "",
+      "type": "string",
+      "description": "Auto-populated by Apply for Job's test script."
+    },
+    {
+      "key": "nonExistentId",
+      "value": "64f0000000000000000000aa",
+      "type": "string",
+      "description": "Syntactically valid (24 hex char) Mongo ObjectId guaranteed not to exist — used for 404 negative tests."
+    }
+  ]
+}

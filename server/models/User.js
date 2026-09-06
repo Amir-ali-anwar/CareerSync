@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import validator from "validator";
+import JobsModal from "./JobsModel.js";
+import JobApplicationModal from "./JobApplicationModel.js";
 import bcrypt from "bcryptjs";
 const UserSchema = new mongoose.Schema(
   {
@@ -31,6 +33,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: [true, "Please provide password"],
       minlength: [5, "Password must be at least 5 characters"],
+      select: false,
     },
     lastName: {
       type: String,
@@ -68,6 +71,24 @@ const UserSchema = new mongoose.Schema(
         message: "Please provide a valid phone number",
       },
     },
+    companyName: {
+      type: String,
+      required: function () {
+        return this.role === "employer";
+      },
+    },
+    companySize: {
+      type: String,
+      required: function () {
+        return this.role === "employer";
+      },
+    },
+    industry: {
+      type: String,
+      required: function () {
+        return this.role === "employer";
+      },
+    },
     verificationToken: {
       type: String,
     },
@@ -78,7 +99,7 @@ const UserSchema = new mongoose.Schema(
     verified: {
       type: Date,
     },
-    verificationTokenExpires:Date,
+    verificationTokenExpires: Date,
     createdAt: {
       type: Date,
       default: Date.now,
@@ -89,14 +110,20 @@ const UserSchema = new mongoose.Schema(
 UserSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
 
-  // Ensure SALT_ROUNDS is parsed properly as an integer
-  const saltRounds = parseInt(process.env.SALT_ROUNDS, 10);
-  if (isNaN(saltRounds)) {
-    throw new Error("Invalid SALT_ROUNDS value in environment variables");
-  }
+  const saltRounds = parseInt(process.env.SALT_ROUNDS, 10) || 10;
 
   const salt = await bcrypt.genSalt(saltRounds);
   this.password = await bcrypt.hash(this.password, salt);
+});
+UserSchema.post("findOneAndDelete", async (doc) => {
+  if (doc) {
+    if (doc.role === "employer") {
+      await JobsModal.deleteMany({ createdBy: doc._id });
+    }
+    if (doc.role === "talent") {
+      await JobApplicationModal.deleteMany({ talent: doc._id });
+    }
+  }
 });
 
 UserSchema.methods.comparePassword = async function (canditatePassword) {

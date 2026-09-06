@@ -1,0 +1,23 @@
+node_modules
+npm-debug.log*
+
+# secrets - never baked into the image
+.env
+.env.local
+
+# dev-only / not needed at runtime
+.git
+.gitignore
+tests
+coverage
+*.md
+uploads
+
+# editor/OS cruft
+.vscode
+.idea
+.DS_Store
+
+# Docker meta files themselves
+Dockerfile
+.dockerignore

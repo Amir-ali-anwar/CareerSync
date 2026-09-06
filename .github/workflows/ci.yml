@@ -1,0 +1,33 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [master, backend-parent]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Tests spin up their own MongoDB via mongodb-memory-server (see tests/setup.js) -
+      # no external database service container is needed in CI.
+      - name: Run test suite
+        run: npm test
