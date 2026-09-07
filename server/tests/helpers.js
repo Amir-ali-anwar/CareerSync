@@ -39,8 +39,8 @@ export const registerUser = async (payload) => {
 export const verifyUser = async (email) => {
   const user = await User.findOne({ email });
   await request(app)
-    .get("/api/v1/auth/verify-Email")
-    .query({ email, verificationToken: user.verificationToken });
+    .post("/api/v1/auth/verify-Email")
+    .send({ email, otp: user.verificationToken });
   return User.findOne({ email });
 };
 

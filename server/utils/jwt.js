@@ -27,15 +27,17 @@ const isTokenValid = (token, secret = process.env.JWT_SECRET) => jwt.verify(toke
 /**
  * Sets the access-token cookie, and - when `refreshTokenSecret` is provided - the
  * refresh-token cookie pair:
- *   - `refreshToken`: a JWT (signed with JWT_REFRESH_SECRET) carrying only the user's
- *     identity, so a leaked access-token secret can't be used to forge a refresh session.
+ *   - `refreshToken`: a JWT (signed with JWT_REFRESH_SECRET) carrying the user's
+ *     identity plus `tokenId` (the specific Token document's _id), so a leaked
+ *     access-token secret can't be used to forge a refresh session, and the right
+ *     session can be looked up directly even when a user has several concurrent ones.
  *   - `refreshTokenSecret`: the raw opaque bearer secret, kept OUT of any JWT payload.
  *     Only its SHA-256 hash is ever persisted (see utils/hashToken.js), so a database
  *     leak alone can never be replayed as a working credential.
  * Omit `refreshTokenSecret` (e.g. on a plain profile update) to leave the caller's
  * existing refresh session untouched.
  */
-const attachCookiesToResponse = ({ res, user, refreshTokenSecret }) => {
+const attachCookiesToResponse = ({ res, user, refreshTokenSecret, tokenId }) => {
   const accessTokenJWT = createJWT({
     payload: { user },
     expiresIn: ACCESS_TOKEN_EXPIRY,
@@ -51,7 +53,7 @@ const attachCookiesToResponse = ({ res, user, refreshTokenSecret }) => {
 
   if (refreshTokenSecret) {
     const refreshTokenJWT = createJWT({
-      payload: { userId: user.userId },
+      payload: { userId: user.userId, tokenId },
       expiresIn: REFRESH_TOKEN_EXPIRY,
       secret: process.env.JWT_REFRESH_SECRET,
     });

@@ -24,6 +24,11 @@ const JobApplicationSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    // The applicant's original uploaded filename (e.g. "resume.pdf"), for display
+    // purposes - `cv` itself is the internal storage path, not a human-friendly name.
+    cvOriginalName: {
+      type: String,
+    },
     coverLetter: {
       type: String,
     },

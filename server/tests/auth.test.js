@@ -67,17 +67,17 @@ describe("Authentication & User Management", () => {
     });
   });
 
-  describe("GET /api/v1/auth/verify-Email", () => {
-    it("rejects an incorrect verification token", async () => {
+  describe("POST /api/v1/auth/verify-Email", () => {
+    it("rejects an incorrect verification code", async () => {
       const payload = talentPayload();
       await registerUser(payload);
       const res = await request(app)
-        .get("/api/v1/auth/verify-Email")
-        .query({ email: payload.email, verificationToken: "wrong-token" });
+        .post("/api/v1/auth/verify-Email")
+        .send({ email: payload.email, otp: "000000" });
       expect(res.statusCode).toBe(401);
     });
 
-    it("rejects an expired verification token", async () => {
+    it("rejects an expired verification code", async () => {
       const payload = talentPayload();
       await registerUser(payload);
       await User.findOneAndUpdate(
@@ -86,13 +86,29 @@ describe("Authentication & User Management", () => {
       );
       const user = await User.findOne({ email: payload.email });
       const res = await request(app)
-        .get("/api/v1/auth/verify-Email")
-        .query({ email: payload.email, verificationToken: user.verificationToken });
+        .post("/api/v1/auth/verify-Email")
+        .send({ email: payload.email, otp: user.verificationToken });
       expect(res.statusCode).toBe(401);
       expect(res.body.msg).toMatch(/expired/i);
     });
 
-    it("verifies successfully with a valid token", async () => {
+    it("locks out after too many incorrect attempts, forcing a resend", async () => {
+      const payload = talentPayload();
+      await registerUser(payload);
+      for (let i = 0; i < 5; i += 1) {
+        await request(app)
+          .post("/api/v1/auth/verify-Email")
+          .send({ email: payload.email, otp: "000000" });
+      }
+      const user = await User.findOne({ email: payload.email });
+      const res = await request(app)
+        .post("/api/v1/auth/verify-Email")
+        .send({ email: payload.email, otp: user.verificationToken });
+      expect(res.statusCode).toBe(401);
+      expect(res.body.msg).toMatch(/too many/i);
+    });
+
+    it("verifies successfully with a valid code", async () => {
       const payload = talentPayload();
       await registerUser(payload);
       const user = await verifyUser(payload.email);

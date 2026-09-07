@@ -7,6 +7,25 @@ jest.mock("../utils/sendVerificationEmail.js", () => ({
   default: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock("../utils/sendPasswordResetEmail.js", () => ({
+  __esModule: true,
+  default: jest.fn().mockResolvedValue(true),
+}));
+
+// HIBP is a real third-party network call - tests must stay offline and deterministic.
+// Individual tests can override this per-call via `.mockResolvedValueOnce(true)`.
+jest.mock("../utils/checkPasswordBreached.js", () => ({
+  __esModule: true,
+  default: jest.fn().mockResolvedValue(false),
+}));
+
+// A real Google ID token can't be verified offline - individual tests override this
+// per-call via `.mockResolvedValueOnce({...})` / `.mockRejectedValueOnce(...)`.
+jest.mock("../utils/googleAuth.js", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
+
 let mongod;
 
 beforeAll(async () => {

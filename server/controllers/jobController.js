@@ -665,6 +665,7 @@ export const applyForJob = async (req, res) => {
     status: "pending",
     coverLetter: coverLetter || "",
     cv: cvPath || "",
+    cvOriginalName: req.file.originalname,
     portfolio: portfolioPath,
     linkedInProfile: linkedInProfile || "",
     skills: skills || [],

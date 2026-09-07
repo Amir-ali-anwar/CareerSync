@@ -85,7 +85,12 @@ const CandidateProfileSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "JobApplication",
       },
+      // Internal CV storage path (despite the name) - see utils/cvStorage.js. Kept as-is
+      // for backward compatibility with the existing job-application-triggered flow.
       fileName: String,
+      // The user's actual uploaded filename (e.g. "resume.pdf"), for display purposes -
+      // added alongside `fileName` rather than replacing it.
+      originalFileName: String,
       extractedAt: Date,
     },
     // Status of the most recent resume-processing run (see resumeProcessingService.js),
@@ -94,6 +99,10 @@ const CandidateProfileSchema = new mongoose.Schema(
       type: String,
       enum: Object.values(AI_PROCESSING_STATUS),
       default: AI_PROCESSING_STATUS.PENDING,
+    },
+    // Set only when processingStatus is "failed" - mirrors JobApplication.resumeProcessingError.
+    processingError: {
+      type: String,
     },
     // Increments each time a resume-processing run successfully overwrites this
     // profile's extracted fields - a simple change counter, not a version history.

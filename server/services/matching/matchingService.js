@@ -132,4 +132,60 @@ const calculateMatchesForCandidates = async (userIds, job, jobProfile, options) 
   }, {});
 };
 
-export { calculateMatch, calculateMatchForCandidateAndJob, calculateMatchesForCandidates };
+// Bounds how many open jobs a single /candidate-profile/matches call will score against -
+// same reasoning as talentController's MAX_EXPORT_RECORDS: an unbounded scan+score over
+// every open job in the system is the one truly unbounded-by-time query this endpoint
+// could otherwise run.
+const MAX_MATCHING_CANDIDATE_JOBS = 500;
+
+/**
+ * Batched counterpart to calculateMatchForCandidateAndJob - ranks every open,
+ * non-expired job against ONE candidate's profile, for GET /candidate-profile/matches.
+ * Scoring happens in memory over at most MAX_MATCHING_CANDIDATE_JOBS jobs (fetched once,
+ * along with their JobProfiles in a single follow-up query - no N+1), then the caller's
+ * page is sliced off the sorted, optionally minScore-filtered result.
+ */
+const calculateMatchesForCandidate = async (userId, { page = 1, limit = 10, minScore = 0 } = {}) => {
+  const candidateProfile = await CandidateProfileModel.findOne({ user: userId }).select("+embedding");
+  const candidateProfileStatus = deriveProfileStatus(candidateProfile);
+
+  const openJobsFilter = {
+    isClosed: false,
+    $or: [{ applicationDeadline: null }, { applicationDeadline: { $gt: new Date() } }],
+  };
+  const jobs = await JobModel.find(openJobsFilter).sort("-createdAt").limit(MAX_MATCHING_CANDIDATE_JOBS);
+  const jobIds = jobs.map((job) => job._id);
+  const jobProfiles = await JobProfileModel.find({ job: { $in: jobIds } }).select("+embedding");
+  const jobProfileByJobId = new Map(jobProfiles.map((profile) => [String(profile.job), profile]));
+
+  const scored = jobs
+    .map((job) => {
+      const jobProfile = jobProfileByJobId.get(String(job._id)) || null;
+      const result = calculateMatch(candidateProfile, job, jobProfile);
+      return {
+        job,
+        matchScore: result.matchScore,
+        componentScores: result.componentScores,
+        matchedSkills: result.matchedSkills,
+        missingRequiredSkills: result.missingRequiredSkills,
+        matchingAlgorithmVersion: result.matchingAlgorithmVersion,
+        jobProfileStatus: deriveProfileStatus(jobProfile),
+      };
+    })
+    .filter((match) => match.matchScore >= minScore)
+    .sort((a, b) => b.matchScore - a.matchScore);
+
+  const total = scored.length;
+  const numOfPages = Math.max(Math.ceil(total / limit), 1);
+  const start = (page - 1) * limit;
+  const items = scored.slice(start, start + limit);
+
+  return { items, total, numOfPages, currentPage: page, candidateProfileStatus };
+};
+
+export {
+  calculateMatch,
+  calculateMatchForCandidateAndJob,
+  calculateMatchesForCandidates,
+  calculateMatchesForCandidate,
+};

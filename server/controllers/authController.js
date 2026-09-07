@@ -3,14 +3,26 @@ import {
   attachCookiesToResponse,
   createTokenUser,
   sendVerificationEmail,
+  sendPasswordResetEmail,
   isTokenValid,
+  createJWT,
   hashToken,
+  generateOtp,
+  isPasswordBreached,
+  revokeAllSessionsExcept,
+  issueSession,
 } from "../utils/index.js";
 import { BadRequestError, UnAuthenticatedError } from "../errors/index.js";
 import crypto from "crypto";
 import User from "../models/User.js";
 import Token from "../models/Token.js";
 import logger from "../utils/logger.js";
+
+const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_OTP_ATTEMPTS = 5;
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+const ACCOUNT_LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const TWO_FACTOR_PENDING_EXPIRY = "5m";
 
 // Fire-and-forget: an account is fully created/updated in the database before this is
 // called, so a slow or failing SMTP provider must never turn a successful registration/
@@ -20,6 +32,17 @@ import logger from "../utils/logger.js";
 const dispatchVerificationEmail = (context, params) => {
   sendVerificationEmail(params).catch((error) => {
     logger.error("verification_email_failed", {
+      context,
+      userId: String(params.userId || ""),
+      message: error.message,
+    });
+  });
+};
+
+// Same fire-and-forget reasoning as dispatchVerificationEmail above.
+const dispatchPasswordResetEmail = (context, params) => {
+  sendPasswordResetEmail(params).catch((error) => {
+    logger.error("password_reset_email_failed", {
       context,
       userId: String(params.userId || ""),
       message: error.message,
@@ -84,8 +107,8 @@ const getTrustedFrontendOrigin = () =>
  *                 example: john.doe@example.com
  *               password:
  *                 type: string
- *                 minLength: 5
- *                 description: User's password
+ *                 minLength: 8
+ *                 description: User's password (min 8 chars, at least one letter and one number)
  *                 example: password123
  *               lastName:
  *                 type: string
@@ -188,8 +211,14 @@ const register = async (req, res) => {
     throw new BadRequestError("Email already exists");
   }
 
-  const verificationToken = crypto.randomBytes(40).toString("hex");
-  const verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  if (await isPasswordBreached(password)) {
+    throw new BadRequestError(
+      "This password has appeared in a data breach. Please choose a different one."
+    );
+  }
+
+  const verificationToken = generateOtp();
+  const verificationTokenExpires = new Date(Date.now() + OTP_EXPIRY_MS);
 
   const userData = {
     name,
@@ -212,7 +241,7 @@ const register = async (req, res) => {
     userId: user._id,
     name: user.name,
     email: user.email,
-    verificationToken: user.verificationToken,
+    otp: user.verificationToken,
     origin,
   });
 
@@ -248,7 +277,10 @@ const register = async (req, res) => {
  *                 example: password123
  *     responses:
  *       200:
- *         description: User logged in successfully
+ *         description: >
+ *           User logged in successfully, OR (if the account has 2FA enabled) a
+ *           `{ requiresTwoFactor: true, tempToken }` response - POST tempToken plus a
+ *           TOTP/backup code to /api/v1/auth/2fa/login to complete the sign-in.
  *         content:
  *           application/json:
  *             schema:
@@ -256,9 +288,11 @@ const register = async (req, res) => {
  *               properties:
  *                 tokenUser:
  *                   $ref: '#/components/schemas/User'
+ *                 requiresTwoFactor: { type: boolean }
+ *                 tempToken: { type: string }
  *         headers:
  *           Set-Cookie:
- *             description: JWT tokens set in httpOnly cookies
+ *             description: JWT tokens set in httpOnly cookies (omitted when requiresTwoFactor is true)
  *             schema:
  *               type: string
  *               example: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure
@@ -269,7 +303,7 @@ const register = async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  *       401:
- *         description: Unauthorized - invalid credentials or unverified email
+ *         description: Unauthorized - invalid credentials, unverified email, or account locked
  *         content:
  *           application/json:
  *             schema:
@@ -281,38 +315,52 @@ const login = async (req, res, next) => {
   if (!email || !password) {
     throw new BadRequestError("Please provide email and password");
   }
-  const user = await User.findOne({ email }).select("+password");
+  const user = await User.findOne({ email }).select("+password +twoFactorSecret +twoFactorBackupCodes");
 
   if (!user) {
     throw new UnAuthenticatedError("Invalid Credentials");
   }
 
+  if (user.lockUntil && user.lockUntil > new Date()) {
+    const minutesLeft = Math.ceil((user.lockUntil - Date.now()) / 60000);
+    throw new UnAuthenticatedError(
+      `Account locked due to too many failed attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}.`
+    );
+  }
+
   const isPasswordCorrect = await user.comparePassword(password);
   if (!isPasswordCorrect) {
+    user.failedLoginAttempts += 1;
+    if (user.failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+      user.lockUntil = new Date(Date.now() + ACCOUNT_LOCK_DURATION_MS);
+      user.failedLoginAttempts = 0;
+    }
+    await user.save({ validateBeforeSave: false });
     throw new UnAuthenticatedError("Invalid Credentials");
   }
   if (!user.isVerified) {
     throw new UnAuthenticatedError("Please verify your email");
   }
-  const tokenUser = createTokenUser(user);
 
-  // Issue a fresh refresh token on every login (replaces any previous one for this user).
-  // Only the SHA-256 hash of the opaque secret is persisted - the raw value never
-  // touches the database, so a DB leak alone can't be replayed as a valid credential.
-  const refreshTokenSecret = crypto.randomBytes(40).toString("hex");
+  user.failedLoginAttempts = 0;
+  user.lockUntil = undefined;
+  await user.save({ validateBeforeSave: false });
+
   // Some clients/proxies omit User-Agent entirely - default it so the required schema
-  // field is always satisfied instead of silently persisting an invalid Token document
-  // (findOneAndUpdate skips schema validation by default without runValidators).
+  // field is always satisfied instead of silently persisting an invalid Token document.
   const userAgent = req.headers["user-agent"] || "unknown";
   const ip = req.ip;
 
-  await Token.findOneAndUpdate(
-    { user: user._id },
-    { refreshToken: hashToken(refreshTokenSecret), ip, userAgent, isValid: true },
-    { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
-  );
+  if (user.twoFactorEnabled) {
+    const tempToken = createJWT({
+      payload: { twoFactorPending: { userId: user._id.toString() } },
+      expiresIn: TWO_FACTOR_PENDING_EXPIRY,
+      secret: process.env.JWT_SECRET,
+    });
+    return res.status(StatusCodes.OK).json({ requiresTwoFactor: true, tempToken });
+  }
 
-  attachCookiesToResponse({ res, user: tokenUser, refreshTokenSecret });
+  const tokenUser = await issueSession({ res, user, ip, userAgent });
 
   res.status(StatusCodes.OK).json({ tokenUser });
 };
@@ -359,10 +407,17 @@ const refreshUserToken = async (req, res) => {
     throw new UnAuthenticatedError("Authentication Invalid");
   }
 
-  const existingToken = await Token.findOne({ user: payload.userId });
+  // Looked up by the specific session's own _id (embedded in the refresh JWT at issuance)
+  // rather than by user, since a user can now have several concurrent sessions/devices.
+  const existingToken = await Token.findById(payload.tokenId);
   const incomingHash = hashToken(refreshSecretCookie);
 
-  if (!existingToken || !existingToken.isValid || existingToken.refreshToken !== incomingHash) {
+  if (
+    !existingToken ||
+    !existingToken.isValid ||
+    existingToken.user.toString() !== payload.userId ||
+    existingToken.refreshToken !== incomingHash
+  ) {
     // Reuse of an already-rotated or revoked token: treat as compromised and revoke the session.
     if (existingToken) {
       existingToken.isValid = false;
@@ -383,7 +438,12 @@ const refreshUserToken = async (req, res) => {
   await existingToken.save();
 
   const tokenUser = createTokenUser(user);
-  attachCookiesToResponse({ res, user: tokenUser, refreshTokenSecret: newRefreshTokenSecret });
+  attachCookiesToResponse({
+    res,
+    user: tokenUser,
+    refreshTokenSecret: newRefreshTokenSecret,
+    tokenId: existingToken._id,
+  });
   res.status(StatusCodes.OK).json({ tokenUser });
 };
 
@@ -458,8 +518,9 @@ const updateUser = async (req, res, next) => {
   if (emailChanged) {
     // Changing email means the new address hasn't been proven, so re-verification is required.
     user.isVerified = false;
-    user.verificationToken = crypto.randomBytes(40).toString("hex");
-    user.verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
+    user.verificationToken = generateOtp();
+    user.verificationTokenExpires = new Date(Date.now() + OTP_EXPIRY_MS);
+    user.verificationAttempts = 0;
   }
 
   await user.save();
@@ -470,7 +531,7 @@ const updateUser = async (req, res, next) => {
       userId: user._id,
       name: user.name,
       email: user.email,
-      verificationToken: user.verificationToken,
+      otp: user.verificationToken,
       origin,
     });
   }
@@ -509,8 +570,8 @@ const updateUser = async (req, res, next) => {
  *                 example: oldpassword123
  *               newPassword:
  *                 type: string
- *                 minLength: 5
- *                 description: New password
+ *                 minLength: 8
+ *                 description: New password (min 8 chars, at least one letter and one number)
  *                 example: newpassword123
  *     responses:
  *       200:
@@ -545,11 +606,20 @@ const updateUserPassword = async (req, res) => {
   if (oldPassword === newPassword) {
     throw new BadRequestError("New password must be different from the old password");
   }
+  if (newPassword.length < 8 || !/[a-zA-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+    throw new BadRequestError("Password must be at least 8 characters and contain a letter and a number");
+  }
   const user = await User.findOne({ _id: req.user.userId }).select("+password");
   const isPasswordCorrect = await user.comparePassword(oldPassword);
 
   if (!isPasswordCorrect) {
     throw new UnAuthenticatedError("Invalid Credentials");
+  }
+
+  if (await isPasswordBreached(newPassword)) {
+    throw new BadRequestError(
+      "This password has appeared in a data breach. Please choose a different one."
+    );
   }
 
   user.password = newPassword;
@@ -647,11 +717,12 @@ const resendVerificationToken = async (req, res) => {
     throw new BadRequestError("Account already verified");
   }
 
-  const verificationToken = crypto.randomBytes(40).toString("hex");
-  const verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  const verificationToken = generateOtp();
+  const verificationTokenExpires = new Date(Date.now() + OTP_EXPIRY_MS);
 
   user.verificationToken = verificationToken;
   user.verificationTokenExpires = verificationTokenExpires;
+  user.verificationAttempts = 0;
 
   await user.save({ validateBeforeSave: false });
 
@@ -660,7 +731,7 @@ const resendVerificationToken = async (req, res) => {
     userId: user._id,
     name: user.name,
     email: user.email,
-    verificationToken,
+    otp: verificationToken,
     origin,
   });
 
@@ -673,25 +744,19 @@ const resendVerificationToken = async (req, res) => {
 /**
  * @swagger
  * /api/v1/auth/verify-Email:
- *   get:
- *     summary: Verify user email address
+ *   post:
+ *     summary: Verify user email address using an emailed 6-digit OTP code
  *     tags: [Authentication]
- *     parameters:
- *       - in: query
- *         name: verificationToken
- *         required: true
- *         schema:
- *           type: string
- *         description: Email verification token
- *         example: abc123def456ghi789
- *       - in: query
- *         name: email
- *         required: true
- *         schema:
- *           type: string
- *           format: email
- *         description: User's email address
- *         example: john.doe@example.com
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, otp]
+ *             properties:
+ *               email: { type: string, format: email, example: john.doe@example.com }
+ *               otp: { type: string, description: 6-digit code emailed to the user, example: "123456" }
  *     responses:
  *       200:
  *         description: Email verified successfully
@@ -711,21 +776,30 @@ const resendVerificationToken = async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 const verifyEmail = async (req, res) => {
-  const { verificationToken, email } = req.query.email ? req.query : req.body;
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    throw new BadRequestError("Please provide email and verification code");
+  }
   const user = await User.findOne({ email });
   if (!user) {
     throw new UnAuthenticatedError("Please provide valid email address");
   }
-  if (user.verificationTokenExpires < new Date()) {
-    throw new UnAuthenticatedError("Verification token expired. Please request a new one.");
+  if (!user.verificationTokenExpires || user.verificationTokenExpires < new Date()) {
+    throw new UnAuthenticatedError("Verification code expired. Please request a new one.");
   }
-  if (!timingSafeEqualStrings(verificationToken, user.verificationToken)) {
+  if (user.verificationAttempts >= MAX_OTP_ATTEMPTS) {
+    throw new UnAuthenticatedError("Too many incorrect attempts. Please request a new code.");
+  }
+  if (!timingSafeEqualStrings(otp, user.verificationToken)) {
+    user.verificationAttempts += 1;
+    await user.save({ validateBeforeSave: false });
     throw new UnAuthenticatedError("Verification Failed");
   }
-  (user.isVerified = true),
-    (user.verified = Date.now()),
-    (user.verificationToken = "");
+  user.isVerified = true;
+  user.verified = Date.now();
+  user.verificationToken = "";
   user.verificationTokenExpires = null;
+  user.verificationAttempts = 0;
   await user.save();
   res.status(StatusCodes.OK).json({ msg: "Email Verified" });
 };
@@ -759,7 +833,8 @@ const logout = async (req, res) => {
   if (refreshTokenCookie) {
     try {
       const payload = isTokenValid(refreshTokenCookie, process.env.JWT_REFRESH_SECRET);
-      await Token.findOneAndUpdate({ user: payload.userId }, { isValid: false });
+      // Revoke only THIS session - a user may be logged in on other devices too.
+      await Token.findByIdAndUpdate(payload.tokenId, { isValid: false });
     } catch (error) {
       // Refresh token already invalid/expired - nothing server-side to revoke.
     }
@@ -768,6 +843,178 @@ const logout = async (req, res) => {
   clearAuthCookies(res);
 
   res.status(StatusCodes.OK).json({ msg: "user logged out!" });
+};
+
+/**
+ * @swagger
+ * /api/v1/auth/forgot-password:
+ *   post:
+ *     summary: Request a password reset link
+ *     description: >
+ *       Always responds 200 with a generic message, whether or not an account exists for
+ *       the given email - this prevents using the endpoint to enumerate registered
+ *       emails. If an account does exist, a reset link (valid 10 minutes) is emailed
+ *       fire-and-forget, same pattern as the verification email.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, format: email }
+ *     responses:
+ *       200:
+ *         description: Generic acknowledgement (see description)
+ *       400:
+ *         description: Bad request - missing email
+ */
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    throw new BadRequestError("Please provide email");
+  }
+
+  const user = await User.findOne({ email });
+  if (user) {
+    const resetToken = generateOtp();
+    user.passwordResetToken = resetToken;
+    user.passwordResetTokenExpires = new Date(Date.now() + OTP_EXPIRY_MS);
+    user.passwordResetAttempts = 0;
+    await user.save({ validateBeforeSave: false });
+
+    const origin = getTrustedFrontendOrigin();
+    dispatchPasswordResetEmail("forgotPassword", {
+      userId: user._id,
+      name: user.name,
+      email: user.email,
+      otp: resetToken,
+      origin,
+    });
+  }
+
+  res.status(StatusCodes.OK).json({
+    msg: "If an account exists for that email, a password reset link has been sent.",
+  });
+};
+
+/**
+ * @swagger
+ * /api/v1/auth/reset-password:
+ *   post:
+ *     summary: Complete a password reset using the emailed 6-digit OTP code
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, otp, newPassword]
+ *             properties:
+ *               email: { type: string, format: email }
+ *               otp: { type: string, description: 6-digit code emailed to the user, example: "123456" }
+ *               newPassword: { type: string, minLength: 8 }
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: Bad request - missing values
+ *       401:
+ *         description: Unauthorized - invalid or expired reset code
+ */
+const resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    throw new BadRequestError("Please provide all values");
+  }
+
+  const user = await User.findOne({ email });
+  if (!user || !user.passwordResetToken || !user.passwordResetTokenExpires) {
+    throw new UnAuthenticatedError("Invalid or expired reset code");
+  }
+  if (user.passwordResetTokenExpires < new Date()) {
+    throw new UnAuthenticatedError("Reset code expired. Please request a new one.");
+  }
+  if (user.passwordResetAttempts >= MAX_OTP_ATTEMPTS) {
+    throw new UnAuthenticatedError("Too many incorrect attempts. Please request a new code.");
+  }
+  if (!timingSafeEqualStrings(otp, user.passwordResetToken)) {
+    user.passwordResetAttempts += 1;
+    await user.save({ validateBeforeSave: false });
+    throw new UnAuthenticatedError("Invalid or expired reset code");
+  }
+
+  if (await isPasswordBreached(newPassword)) {
+    throw new BadRequestError(
+      "This password has appeared in a data breach. Please choose a different one."
+    );
+  }
+
+  user.password = newPassword;
+  user.passwordResetToken = undefined;
+  user.passwordResetTokenExpires = undefined;
+  user.passwordResetAttempts = 0;
+  await user.save();
+
+  // A password reset should log out every existing session, the same way changing your
+  // password anywhere else should - revoke every session for this user.
+  await revokeAllSessionsExcept(user._id);
+
+  res.status(StatusCodes.OK).json({ msg: "Password reset successful. Please sign in with your new password." });
+};
+
+/**
+ * @swagger
+ * /api/v1/auth/me:
+ *   delete:
+ *     summary: Permanently delete the authenticated user's account
+ *     description: >
+ *       Requires re-entering the current password as confirmation. Deleting the user
+ *       triggers the existing User model cascade hook (removes an employer's jobs, or a
+ *       talent's job applications).
+ *     tags: [Authentication]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [password]
+ *             properties:
+ *               password: { type: string }
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
+ *       400:
+ *         description: Bad request - missing password
+ *       401:
+ *         description: Unauthorized - invalid password or invalid token
+ */
+const deleteAccount = async (req, res) => {
+  const { password } = req.body;
+  if (!password) {
+    throw new BadRequestError("Please provide your password to confirm account deletion");
+  }
+
+  const user = await User.findOne({ _id: req.user.userId }).select("+password");
+  const isPasswordCorrect = await user.comparePassword(password);
+  if (!isPasswordCorrect) {
+    throw new UnAuthenticatedError("Invalid Credentials");
+  }
+
+  // findOneAndDelete (not deleteOne) is required here - the User model's cascade hook
+  // (cleans up an employer's jobs or a talent's applications) is registered on the
+  // "findOneAndDelete" mongoose middleware event specifically.
+  await User.findOneAndDelete({ _id: req.user.userId });
+  await revokeAllSessionsExcept(req.user.userId);
+
+  clearAuthCookies(res);
+  res.status(StatusCodes.OK).json({ msg: "Account deleted" });
 };
 
 export {
@@ -780,4 +1027,7 @@ export {
   updateUserPassword,
   resendVerificationToken,
   refreshUserToken,
+  forgotPassword,
+  resetPassword,
+  deleteAccount,
 };

@@ -83,3 +83,63 @@ export const organizationCreationLimiter = rateLimit({
   legacyHeaders: false,
   skip: skipInTest,
 });
+
+// 📄 Standalone resume upload: same file-upload throttle as applying for a job.
+export const resumeUploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20,
+  message: { msg: "Too many resume uploads. Try again in 1 hour." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+});
+
+// 🔑 Forgot/reset password: sensitive, low-frequency actions - throttle harder than a
+// plain read, similar to registration.
+export const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: { msg: "Too many password reset requests. Try again in 1 hour." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+});
+
+export const resetPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: { msg: "Too many password reset attempts. Try again in 1 hour." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+});
+
+// ✅ Verify email: now a guessable 6-digit code (not a clicked link) - throttle attempts.
+export const verifyEmailLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10,
+  message: { msg: "Too many verification attempts. Try again in 1 hour." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+});
+
+// 🔑 2FA: guessable 6-digit TOTP codes / backup codes - same throttling reasoning as OTP.
+export const twoFactorLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: { msg: "Too many two-factor attempts. Try again in 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+});
+
+// 🔓 Google sign-in: same shape as loginLimiter - throttles token-verification attempts.
+export const googleAuthLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  message: { msg: "Too many sign-in attempts. Try again in 1 minute." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+});

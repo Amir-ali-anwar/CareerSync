@@ -1,6 +1,9 @@
 import express from "express";
 import morgan from "morgan";
 import cors from "cors";
+import helmet from "helmet";
+import mongoSanitize from "express-mongo-sanitize";
+import hpp from "hpp";
 import mongoose from "mongoose";
 import { StatusCodes } from "http-status-codes";
 import notFoundMiddleware from "./middlewares/not-found.js";
@@ -9,16 +12,25 @@ import authenticateUser from './middlewares/auth.js'
 import cookieParser from "cookie-parser";
 import 'express-async-errors';
 import authRoutes from "./routes/authRoutes.js";
+import twoFactorRoutes from "./routes/twoFactorRoutes.js";
+import sessionRoutes from "./routes/sessionRoutes.js";
 import JobRoutes from './routes/jobRoutes.js'
 import GetJobApplication from './routes/jobApplicationRoutes.js'
 import talentRoutes from './routes/talentRoutes.js'
 import organizationRoutes from './routes/OrganizationRoutes.js'
+import candidateProfileRoutes from './routes/candidateProfileRoutes.js'
 import { swaggerUi, specs } from './config/swagger.js';
 import { globalLimiter } from './middlewares/rateLimiter.js';
 import requestId from './middlewares/requestId.js';
 import redactUrl from './utils/redactUrl.js';
 
 const app = express();
+
+// contentSecurityPolicy is disabled: this API also serves the Swagger UI at /api-docs,
+// which needs inline scripts/styles that a default CSP would block. Every other helmet
+// protection (X-Content-Type-Options, X-Frame-Options, HSTS in production, hiding
+// X-Powered-By, etc.) still applies.
+app.use(helmet({ contentSecurityPolicy: false }));
 
 // Liveness/readiness probes are registered before body parsing, cookies, rate limiting,
 // the request-id middleware, and access logging - orchestrators poll these every few
@@ -38,6 +50,8 @@ app.get('/readyz', (req, res) => {
 });
 
 app.use(express.json());
+app.use(mongoSanitize());
+app.use(hpp());
 app.use(cookieParser(process.env.JWT_SECRET));
 // Every request gets a server-generated correlation id, echoed back as X-Request-Id
 // and included in both access log lines and error responses.
@@ -82,10 +96,13 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
 
 // routes
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/auth", twoFactorRoutes);
+app.use("/api/v1/auth", sessionRoutes);
 app.use("/api/v1/jobs", authenticateUser, JobRoutes);
 app.use("/api/v1/applications", authenticateUser, GetJobApplication);
 app.use("/api/v1/talents", authenticateUser, talentRoutes);
 app.use("/api/v1/organization", organizationRoutes);
+app.use("/api/v1/candidate-profile", authenticateUser, candidateProfileRoutes);
 
 // middlewares
 app.use(notFoundMiddleware);

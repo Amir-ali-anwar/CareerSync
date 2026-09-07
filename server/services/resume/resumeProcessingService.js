@@ -88,6 +88,7 @@ const processResumeForApplication = async (applicationId) => {
         resumeMetadata: {
           sourceApplicationId: application._id,
           fileName: application.cv,
+          originalFileName: application.cvOriginalName,
           extractedAt: new Date(),
         },
         processingStatus: AI_PROCESSING_STATUS.COMPLETED,
@@ -130,4 +131,109 @@ const triggerResumeProcessing = (applicationId) => {
   });
 };
 
-export { processResumeForApplication, triggerResumeProcessing };
+/**
+ * Standalone counterpart to processResumeForApplication - runs the same CV ->
+ * text-extraction -> AI-extraction -> CandidateProfile pipeline, but for a resume
+ * uploaded directly via POST /candidate-profile/resume rather than as part of a job
+ * application. There's no JobApplication record to claim against here, so the
+ * CandidateProfile document itself (created if it doesn't exist yet) is the claim: a
+ * profile already mid-processing is left alone rather than double-processed.
+ */
+const processResumeForUser = async (userId, cvPath, originalFileName) => {
+  const existing = await CandidateProfileModel.findOne({ user: userId });
+  if (existing && existing.processingStatus === AI_PROCESSING_STATUS.PROCESSING) {
+    logger.info("standalone_resume_processing_skipped", {
+      userId: String(userId),
+      reason: "a resume-processing run is already in flight for this candidate",
+    });
+    return { status: "skipped" };
+  }
+
+  await CandidateProfileModel.findOneAndUpdate(
+    { user: userId },
+    {
+      $setOnInsert: { user: userId },
+      $set: { processingStatus: AI_PROCESSING_STATUS.PROCESSING },
+    },
+    { upsert: true, setDefaultsOnInsert: true, runValidators: true }
+  );
+
+  const fail = async (reason) => {
+    await CandidateProfileModel.findOneAndUpdate(
+      { user: userId },
+      { $set: { processingStatus: AI_PROCESSING_STATUS.FAILED, processingError: reason } }
+    );
+    logger.warn("standalone_resume_processing_failed", { userId: String(userId), reason });
+    return { status: "failed", reason };
+  };
+
+  let extractedText;
+  try {
+    extractedText = await extractTextFromCv(cvPath);
+  } catch (error) {
+    return fail(`text_extraction_failed:${error.name}`);
+  }
+
+  if (!extractedText) {
+    return fail("text_extraction_produced_no_text");
+  }
+
+  let extractedProfile;
+  try {
+    extractedProfile = await aiService.extractResumeProfile(extractedText);
+  } catch (error) {
+    return fail(`ai_extraction_failed:${error.name}`);
+  }
+
+  const updatedProfile = await CandidateProfileModel.findOneAndUpdate(
+    { user: userId },
+    {
+      $set: {
+        skills: extractedProfile.skills,
+        yearsOfExperience: extractedProfile.yearsOfExperience,
+        education: extractedProfile.education,
+        certifications: extractedProfile.certifications,
+        domains: extractedProfile.domains,
+        resumeText: extractedText,
+        resumeMetadata: {
+          fileName: cvPath,
+          originalFileName,
+          extractedAt: new Date(),
+        },
+        processingStatus: AI_PROCESSING_STATUS.COMPLETED,
+      },
+      $unset: { processingError: "" },
+      $inc: { profileVersion: 1 },
+    },
+    { new: true, runValidators: true }
+  );
+
+  logger.info("standalone_resume_processing_completed", {
+    userId: String(userId),
+    profileVersion: updatedProfile.profileVersion,
+  });
+
+  triggerCandidateEmbedding(userId);
+
+  return { status: "completed", candidateProfileId: updatedProfile._id, profileVersion: updatedProfile.profileVersion };
+};
+
+/**
+ * Fire-and-forget entry point for the standalone resume-upload controller - same
+ * reasoning as triggerResumeProcessing above.
+ */
+const triggerResumeProcessingForUser = (userId, cvPath, originalFileName) => {
+  processResumeForUser(userId, cvPath, originalFileName).catch((error) => {
+    logger.error("standalone_resume_processing_unexpected_error", {
+      userId: String(userId),
+      message: error.message,
+    });
+  });
+};
+
+export {
+  processResumeForApplication,
+  triggerResumeProcessing,
+  processResumeForUser,
+  triggerResumeProcessingForUser,
+};

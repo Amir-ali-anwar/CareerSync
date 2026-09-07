@@ -31,9 +31,31 @@ const UserSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, "Please provide password"],
-      minlength: [5, "Password must be at least 5 characters"],
+      // Google-only accounts have no local password to check against.
+      required: function () {
+        return !this.googleId;
+      },
+      minlength: [8, "Password must be at least 8 characters"],
+      validate: {
+        validator: function (v) {
+          // Only applies when a password is actually being set (Google-only accounts
+          // never populate this field, and Mongoose skips validators for undefined paths).
+          if (!v) return true;
+          return /[a-zA-Z]/.test(v) && /\d/.test(v);
+        },
+        message: "Password must contain at least one letter and one number",
+      },
       select: false,
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
     },
     lastName: {
       type: String,
@@ -89,8 +111,19 @@ const UserSchema = new mongoose.Schema(
         return this.role === "employer";
       },
     },
+    // Holds a 6-digit OTP (not a link token) - see utils/otp.js. Same field name kept
+    // to minimize churn even though the format changed.
     verificationToken: {
       type: String,
+    },
+    verificationTokenExpires: Date,
+    // Wrong-code guesses against the current OTP; reset to 0 whenever a fresh code is
+    // issued (register/resend). Once this crosses MAX_OTP_ATTEMPTS the code is treated
+    // as burned - the user must request a new one - so a 6-digit space can't be brute-forced
+    // within its 10-minute lifetime.
+    verificationAttempts: {
+      type: Number,
+      default: 0,
     },
     isVerified: {
       type: Boolean,
@@ -99,7 +132,35 @@ const UserSchema = new mongoose.Schema(
     verified: {
       type: Date,
     },
-    verificationTokenExpires: Date,
+    // Also a 6-digit OTP now, same reasoning as verificationToken above.
+    passwordResetToken: {
+      type: String,
+    },
+    passwordResetTokenExpires: Date,
+    passwordResetAttempts: {
+      type: Number,
+      default: 0,
+    },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: {
+      type: Date,
+    },
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    twoFactorSecret: {
+      type: String,
+      select: false,
+    },
+    twoFactorBackupCodes: {
+      type: [String],
+      select: false,
+      default: undefined,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -127,6 +188,8 @@ UserSchema.post("findOneAndDelete", async (doc) => {
 });
 
 UserSchema.methods.comparePassword = async function (canditatePassword) {
+  // Google-only accounts (no local password set) can never match a password login.
+  if (!this.password) return false;
   const isMatch = await bcrypt.compare(canditatePassword, this.password);
   return isMatch;
 };
