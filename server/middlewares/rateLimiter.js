@@ -143,3 +143,14 @@ export const googleAuthLimiter = rateLimit({
   legacyHeaders: false,
   skip: skipInTest,
 });
+
+// Semantic search: each request embeds the query via a billed OpenAI call - the
+// generic globalLimiter alone leaves that cost effectively unmetered per user.
+export const semanticSearchLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  message: { msg: "Too many semantic search requests. Try again in 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+});

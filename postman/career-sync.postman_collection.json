@@ -3162,6 +3162,177 @@
           ]
         },
         {
+          "name": "Get Job Match Explanation (Why You Match)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/match/explanation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{jobId}}",
+                "match",
+                "explanation"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nModule G — structured, deterministic \"why you match\" breakdown built entirely from the same evidence GET /jobs/{{jobId}}/match already computes (no LLM call, no re-running the matching engine or embeddings). Never accepts a candidate id — always the authenticated caller's own profile, same IDOR-safe identity source as GET /jobs/{{jobId}}/match. Returns matched/missing skills, partial matches, strengths, improvement areas, a per-dimension score breakdown, a match-level classification, and a deterministic human-readable summary."
+          },
+          "response": [
+            {
+              "name": "200 OK (strong match)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/match/explanation",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "{{jobId}}",
+                    "match",
+                    "explanation"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"explanation\": {\n    \"matchScore\": 87,\n    \"matchLevel\": { \"level\": \"strong_match\", \"label\": \"Strong Match\", \"minScore\": 75, \"maxScore\": 89 },\n    \"matchingAlgorithmVersion\": \"v2\",\n    \"candidateProfileStatus\": \"completed\",\n    \"jobProfileStatus\": \"completed\",\n    \"scoreBreakdown\": [\n      { \"dimension\": \"requiredSkills\", \"label\": \"Required Skills\", \"score\": 90, \"weight\": 35, \"included\": true },\n      { \"dimension\": \"semantic\", \"label\": \"Semantic Similarity\", \"score\": 88, \"weight\": 10, \"included\": true }\n    ],\n    \"matchedSkills\": [\n      { \"skill\": \"React\", \"type\": \"required\" },\n      { \"skill\": \"TypeScript\", \"type\": \"required\" }\n    ],\n    \"missingSkills\": [\n      { \"skill\": \"Kubernetes\", \"type\": \"required\", \"importance\": \"high\" }\n    ],\n    \"partialMatches\": [],\n    \"strengths\": [\n      { \"category\": \"skills\", \"message\": \"Matches most required technical skills.\" }\n    ],\n    \"improvements\": [\n      { \"category\": \"skill\", \"item\": \"Kubernetes\", \"reason\": \"Required by this job.\" }\n    ],\n    \"summary\": \"Strong Match. Your strongest matches are React and TypeScript. The main gaps for this position are Kubernetes.\"\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});",
+                  "pm.test(\"Explanation has expected shape\", function () { const j = pm.response.json(); if (pm.response.code === 200) { pm.expect(j.explanation).to.have.property(\"matchScore\"); pm.expect(j.explanation).to.have.property(\"matchLevel\"); pm.expect(j.explanation).to.have.property(\"scoreBreakdown\"); pm.expect(j.explanation).to.have.property(\"summary\"); } });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Skill Gap Analysis (Career Improvement Roadmap)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/skill-gap",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "{{jobId}}",
+                "skill-gap"
+              ]
+            },
+            "description": "**Auth:** Requires an active **talent** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Talent) request).\n\nModule H — deterministic skill gap analysis and prioritized career-improvement roadmap, built on the same MatchResult evidence GET /jobs/{{jobId}}/match/explanation reads (Module G) — no LLM call, no re-running the matching engine or embeddings. Adds one new comparison Module E/G don't compute: a certification gap (CandidateProfile.certifications vs JobProfile.certifications). Candidate-private — never accepts a candidate id, and (unlike the match/explanation endpoints) has no employer-facing counterpart by design (see MODULE_H_REPORT.md's Security section)."
+          },
+          "response": [
+            {
+              "name": "200 OK (several gaps)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/skill-gap",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "{{jobId}}",
+                    "skill-gap"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"gapAnalysis\": {\n    \"matchScore\": 72,\n    \"matchLevel\": { \"level\": \"moderate_match\", \"label\": \"Moderate Match\", \"minScore\": 60, \"maxScore\": 74 },\n    \"matchingAlgorithmVersion\": \"v2\",\n    \"candidateProfileStatus\": \"completed\",\n    \"jobProfileStatus\": \"completed\",\n    \"summary\": { \"totalGaps\": 3, \"criticalGaps\": 0, \"highPriorityGaps\": 1, \"message\": \"Focus on Kubernetes first - it's the highest-priority gap for this role.\" },\n    \"gaps\": [\n      { \"category\": \"required_skill\", \"item\": \"Kubernetes\", \"severity\": \"high\", \"priority\": \"high\", \"reason\": \"Required by this job.\", \"affectedDimension\": \"requiredSkills\", \"recommendedAction\": { \"type\": \"skill_development\", \"focus\": \"Kubernetes\" } },\n      { \"category\": \"preferred_skill\", \"item\": \"GraphQL\", \"severity\": \"medium\", \"priority\": \"medium\", \"reason\": \"Preferred for this job.\", \"affectedDimension\": \"preferredSkills\", \"recommendedAction\": { \"type\": \"skill_development\", \"focus\": \"GraphQL\" } },\n      { \"category\": \"certification\", \"item\": \"AWS Certified Solutions Architect\", \"severity\": \"medium\", \"priority\": \"medium\", \"reason\": \"Listed as a certification for this job.\", \"affectedDimension\": null, \"recommendedAction\": { \"type\": \"certification_development\", \"focus\": \"AWS Certified Solutions Architect\" } }\n    ],\n    \"prioritizedRoadmap\": [\n      { \"rank\": 1, \"category\": \"required_skill\", \"item\": \"Kubernetes\", \"priority\": \"high\", \"impact\": \"high\" },\n      { \"rank\": 2, \"category\": \"preferred_skill\", \"item\": \"GraphQL\", \"priority\": \"medium\", \"impact\": \"medium\" },\n      { \"rank\": 3, \"category\": \"certification\", \"item\": \"AWS Certified Solutions Architect\", \"priority\": \"medium\", \"impact\": \"medium\" }\n    ]\n  }\n}"
+            },
+            {
+              "name": "200 OK (no significant gaps)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/skill-gap",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "jobs",
+                    "{{jobId}}",
+                    "skill-gap"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"gapAnalysis\": {\n    \"matchScore\": 96,\n    \"matchLevel\": { \"level\": \"excellent_match\", \"label\": \"Excellent Match\", \"minScore\": 90, \"maxScore\": 100 },\n    \"matchingAlgorithmVersion\": \"v2\",\n    \"candidateProfileStatus\": \"completed\",\n    \"jobProfileStatus\": \"completed\",\n    \"summary\": { \"totalGaps\": 0, \"criticalGaps\": 0, \"highPriorityGaps\": 0, \"message\": \"No significant gaps found for this role - your profile covers everything this analysis evaluated.\" },\n    \"gaps\": [],\n    \"prioritizedRoadmap\": []\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});",
+                  "pm.test(\"Gap analysis has expected shape\", function () { const j = pm.response.json(); if (pm.response.code === 200) { pm.expect(j.gapAnalysis).to.have.property(\"summary\"); pm.expect(j.gapAnalysis).to.have.property(\"gaps\"); pm.expect(j.gapAnalysis).to.have.property(\"prioritizedRoadmap\"); } });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
           "name": "Unauthorized: Talent Creates a Job (Negative)",
           "request": {
             "method": "POST",
@@ -3961,6 +4132,45 @@
                   "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
                   "});",
                   "pm.test(\"Applications include a match object\", function () { const j = pm.response.json(); if (j.applications && j.applications.length) { pm.expect(j.applications[0]).to.have.property(\"match\"); } });"
+                ],
+                "packages": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Applicant Match Explanation (Employer, Why This Candidate Matches)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/applications/{{jobId}}/{{talentUserId}}/match/explanation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "applications",
+                "{{jobId}}",
+                "{{talentUserId}}",
+                "match",
+                "explanation"
+              ]
+            },
+            "description": "**Auth:** Requires an active **employer** session (Postman's cookie jar auto-sends the `accessToken` cookie set by the most recent Login (Employer) request).\n\nModule G, employer-facing counterpart to GET /jobs/{jobId}/match/explanation — same structured evidence, scoped to one applicant on the caller's own job. Only reachable by the job's owning employer (`checkPermissions`), and only for a user who has actually applied to this job (404 otherwise, not just any candidate id). Never exposes resume text, embeddings, or any field beyond what the matching engine's own evidence already carries."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is as expected\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 403, 404]);",
+                  "});",
+                  "pm.test(\"Explanation has expected shape\", function () { const j = pm.response.json(); if (pm.response.code === 200) { pm.expect(j.explanation).to.have.property(\"matchScore\"); pm.expect(j.explanation).to.have.property(\"scoreBreakdown\"); } });"
                 ],
                 "packages": {}
               }

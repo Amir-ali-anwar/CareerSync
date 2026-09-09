@@ -30,19 +30,27 @@ Gaps between what the frontend brief asked for and what `server/` actually imple
 
 **Small additive bonus while touching this area:** `CandidateProfile.resumeMetadata.fileName` was always the internal CV storage path, not a human-readable name (pre-existing, unrelated to this task). Added `resumeMetadata.originalFileName` (and `JobApplication.cvOriginalName` to source it from the job-application upload flow too) so the frontend can display an actual filename. Purely additive — neither existing field's behavior changed.
 
+### 6. Talent-facing single-job fetch by id — ✅ implemented (2026-09-08)
+
+`GET /api/v1/jobs/talent/:id` — returns the job if it's open and not past its deadline, or (so a talent can still review a job they already applied to after it closes) if the requesting talent has an existing `JobApplication` for it; 404 otherwise, same as a not-found job. Previously `GET /jobs/:id` was employer-only (`authorizePermissions('employer')`), so a talent opening a job-detail page via a direct link, bookmark, or page refresh got nothing — the frontend (`hooks/use-jobs.ts`'s `useTalentJobDetail`) could only ever show a job that had already been seeded into the query cache from a `/search` or `/search/semantic` result list in the same session. `useTalentJobDetail` now calls the real endpoint instead of a deliberately-rejecting stub; cache-seeding from search results is kept as a fast path, this is the fallback for a cold cache.
+
+### 7. 2FA had no frontend integration at all — ✅ implemented (2026-09-08)
+
+The backend's TOTP 2FA (`twoFactorController.js`) was fully built and tested, but nothing in `client/src` called `/2fa/setup`, `/2fa/verify-setup`, `/2fa/login`, or `/2fa/disable` — a user with 2FA enabled (e.g. via a direct API call) would hit `POST /auth/login`'s `{requiresTwoFactor, tempToken}` response shape against a frontend that only ever expected `{tokenUser}`, and could not complete login through the actual product at all. The login page now handles both response shapes: a normal login proceeds as before, while `requiresTwoFactor` swaps in a second step (`app/(auth)/login/page.tsx`) that collects a TOTP/backup code and calls the new `POST /auth/2fa/login` wiring (`useCompleteTwoFactorLogin`, `lib/api/auth.ts`). **Still open:** there is still no Settings UI for a user to actually turn 2FA on/off (`setupTwoFactor`/`verifyTwoFactorSetup`/`disableTwoFactor` remain reachable only via direct API calls) — only the login-time verification step was wired, since that was the completely broken path. Enrollment UI is a reasonably-scoped follow-up.
+
 ---
 
 ## Still open
 
-### 6. No notification preferences
+### 8. No notification preferences — in-app notifications now exist, digests/preferences still don't
 
-**Feature:** The brief's Settings → Notifications section.
+**Update:** An in-app, real-time notification system now exists: `models/NotificationModel.js`, `services/notifications/notificationService.js`, `controllers/notificationController.js`, `GET/PATCH /api/v1/notifications*`, pushed live over socket.io (`services/realtime/socket.js`, authenticated via the same `accessToken` cookie as normal requests, one room per userId). Two triggers are wired so far: `application_submitted` (talent applies → notifies the job's employer) and `application_status_changed` (employer changes status → notifies the talent). Frontend: `NotificationBell` in the dashboard header, `hooks/use-notifications.ts` (react-query + a `useNotificationSocket` live listener, 60s poll as a fallback). Tests: `tests/notifications.test.js`.
 
-**Why it's still open:** No notification system (email digests, in-app alerts, application-status-change pings) exists anywhere in the backend — `nodemailer`/`mailgen` are wired only for transactional auth emails (verification, password reset), not for any user-configurable notification. Storing a `notificationPreferences` toggle with nothing behind it to actually send anything was judged low-value on its own, so it was deliberately left out of this pass.
+**Still open:** no email digests, no user-configurable preferences (which event types to receive, email vs in-app), and no `new_match` trigger — matches are computed on-demand (`GET /candidate-profile/matches`), not proactively, so there's no natural "a new match appeared" event without adding a background job to diff previous results. `nodemailer`/`mailgen` remain wired only for transactional auth emails.
 
-**Suggested endpoint:** a `notificationPreferences` sub-document on `User` plus `GET/PATCH /api/v1/auth/notification-preferences`, and, separately, an actual notification-sending system to make the preferences meaningful.
+**Suggested next step:** a `notificationPreferences` sub-document on `User` plus `GET/PATCH /api/v1/auth/notification-preferences` to gate which of the above actually fire per user; a scheduled job for match-diffing if `new_match` notifications are wanted.
 
-### 7. Organization "analytics" was stubbed then removed
+### 9. Organization "analytics" was stubbed then removed
 
 **Feature:** Any employer-facing analytics (applicants per job over time, conversion rate, follower growth) implied by "AI Career Insights" / dashboard-analytics expectations for the employer side.
 
@@ -52,7 +60,7 @@ Gaps between what the frontend brief asked for and what `server/` actually imple
 
 **Suggested endpoint:** `GET /api/v1/organization/:id/analytics` returning time-bucketed applicant counts, status funnel counts, and follower growth.
 
-### 8. Cross-origin cookie behavior in production
+### 10. Cross-origin cookie behavior in production
 
 **Not a missing feature so much as a deployment risk:** auth cookies (`server/utils/jwt.js`) are set with no explicit `SameSite` (defaults to `Lax`) and `secure: NODE_ENV === 'production'`. This works in local dev because `localhost:3000`/`localhost:4000` are same-site. If the deployed frontend and backend end up on different registrable domains (e.g. `app.careersync.com` and `api.careersync-backend.io`), `SameSite=Lax` cookies will **not** be sent on the frontend's cross-site `fetch` calls, breaking auth entirely in production despite working in dev.
 
@@ -60,6 +68,6 @@ Gaps between what the frontend brief asked for and what `server/` actually imple
 
 ---
 
-## Unrelated pre-existing issue noticed (not fixed — out of scope)
+## Previously-noted test bug — fixed 2026-09-08
 
-`tests/organizations.test.js` — "returns the follower count for a public organization" — asserts `res.body.organization.followers`, but `getPublicFollowerCount` (`controllers/organizationController.js`) actually responds `{ followerCount: number }`. This test was already failing before this work started (confirmed via `git diff` showing no changes to either file this session) and is unrelated to items 1–5 above. Left as-is since organization code was explicitly out of scope for this pass; worth a one-line test fix (`res.body.followerCount`) whenever organization work is picked up.
+`tests/organizations.test.js` — "returns the follower count for a public organization" asserted `res.body.organization.followers`, but `getPublicFollowerCount` (`controllers/organizationController.js`) actually responds `{ followerCount: number }`. Fixed the assertion to match the real (correct) response shape.

@@ -69,4 +69,5 @@ export const QUERY_KEYS = {
   organizationFollowerCount: (id: string) => ["organizations", id, "follower-count"] as const,
   myCandidateProfile: ["candidateProfile", "mine"] as const,
   myMatches: (query?: unknown) => ["candidateProfile", "matches", query] as const,
+  notifications: ["notifications"] as const,
 };

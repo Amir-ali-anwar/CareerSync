@@ -163,6 +163,47 @@ describe("Job Posting / Management / Discovery", () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.job._id).toBe(job._id);
     });
+
+    it("is not reachable by a talent", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer);
+      const { agent: talent } = await createTalentAgent();
+      const res = await talent.get(`/api/v1/jobs/${job._id}`);
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
+  describe("GET /api/v1/jobs/talent/:id", () => {
+    it("is not reachable by an employer", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer);
+      const res = await employer.get(`/api/v1/jobs/talent/${job._id}`);
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("returns 404 for a nonexistent job", async () => {
+      const { agent: talent } = await createTalentAgent();
+      const res = await talent.get("/api/v1/jobs/talent/64b7f3f3f3f3f3f3f3f3f3f3");
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns an open job for any authenticated talent", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer);
+      const { agent: talent } = await createTalentAgent();
+      const res = await talent.get(`/api/v1/jobs/talent/${job._id}`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.job._id).toBe(job._id);
+    });
+
+    it("returns 404 for a closed job the talent never applied to", async () => {
+      const { agent: employer } = await createEmployerAgent();
+      const job = await createJob(employer);
+      await employer.patch(`/api/v1/jobs/${job._id}/close`);
+      const { agent: talent } = await createTalentAgent();
+      const res = await talent.get(`/api/v1/jobs/talent/${job._id}`);
+      expect(res.statusCode).toBe(404);
+    });
   });
 
   describe("PATCH /api/v1/jobs/:id (update)", () => {

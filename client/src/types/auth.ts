@@ -53,3 +53,8 @@ export interface ResetPasswordPayload {
 export interface DeleteAccountPayload {
   password: string;
 }
+
+export interface CompleteTwoFactorLoginPayload {
+  tempToken: string;
+  token: string;
+}

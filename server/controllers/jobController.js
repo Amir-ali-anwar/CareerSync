@@ -7,6 +7,7 @@ import { checkPermissions } from "../middlewares/permissions.js";
 import { triggerResumeProcessing } from "../services/resume/resumeProcessingService.js";
 import { triggerJobIntelligenceProcessing } from "../services/job/jobIntelligenceService.js";
 import { semanticJobSearch } from "../services/embeddings/semanticJobSearchService.js";
+import { createNotification } from "../services/notifications/notificationService.js";
 import JobProfileModel from "../models/JobProfileModel.js";
 import { AI_PROCESSING_STATUS } from "../utils/constants.js";
 
@@ -386,6 +387,40 @@ export const getJob = async (req, res) => {
 
 /**
  * @swagger
+ * /api/v1/jobs/talent/{id}:
+ *   get:
+ *     summary: Get a single job for a talent (open jobs, or a job the talent has applied to)
+ *     tags: [Jobs]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Job ID
+ *     responses:
+ *       200:
+ *         description: Job found
+ *       404:
+ *         description: Job not found, closed/expired with no existing application
+ */
+export const getJobForTalent = async (req, res) => {
+  const job = await JobModal.findById(req.params.id);
+  if (!job) throw new NotFoundError('Job not found');
+
+  const isExpired = job.applicationDeadline && new Date(job.applicationDeadline).getTime() < Date.now();
+  if (job.isClosed || isExpired) {
+    const hasApplied = await JobApplicationModal.exists({ talent: req.user.userId, job: job._id });
+    if (!hasApplied) throw new NotFoundError('Job not found');
+  }
+
+  res.status(StatusCodes.OK).json({ job });
+};
+
+/**
+ * @swagger
  * /api/v1/jobs/{id}:
  *   patch:
  *     summary: Update a job posting
@@ -704,6 +739,15 @@ export const applyForJob = async (req, res) => {
   // it transitions to processing/completed/failed asynchronously and is visible on
   // subsequent reads of the application (e.g. GET /api/v1/applications/my).
   triggerResumeProcessing(newApplication._id);
+
+  await createNotification({
+    user: job.createdBy,
+    type: "application_submitted",
+    title: "New applicant",
+    message: `${req.user.name} applied for ${job.title}`,
+    link: `/talents/${req.user.userId}`,
+    metadata: { jobId: job._id, applicationId: newApplication._id },
+  });
 
   res.status(StatusCodes.CREATED).json({
     msg: "Successfully applied for the job",

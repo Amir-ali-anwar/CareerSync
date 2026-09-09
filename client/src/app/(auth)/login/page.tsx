@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/common/form-field";
-import { useLogin, useResendVerification } from "@/hooks/use-auth";
+import { useCompleteTwoFactorLogin, useLogin, useResendVerification } from "@/hooks/use-auth";
 import { loginSchema, type LoginFormValues } from "@/lib/validation/auth";
 import { ApiError } from "@/types/api";
 
@@ -26,9 +26,13 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const login = useLogin();
+  const completeTwoFactor = useCompleteTwoFactorLogin();
   const resend = useResendVerification();
   const [showPassword, setShowPassword] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [twoFactorTempToken, setTwoFactorTempToken] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
 
   const {
     register,
@@ -40,7 +44,11 @@ function LoginForm() {
   async function onSubmit(values: LoginFormValues) {
     setUnverifiedEmail(null);
     try {
-      await login.mutateAsync(values);
+      const result = await login.mutateAsync(values);
+      if ("requiresTwoFactor" in result) {
+        setTwoFactorTempToken(result.tempToken);
+        return;
+      }
       toast.success("Welcome back");
       router.replace(searchParams.get("next") || "/dashboard");
     } catch (error) {
@@ -51,6 +59,62 @@ function LoginForm() {
         toast.error(error.message);
       }
     }
+  }
+
+  async function onSubmitTwoFactor(event: FormEvent) {
+    event.preventDefault();
+    if (!twoFactorTempToken) return;
+    setTwoFactorError(null);
+    try {
+      await completeTwoFactor.mutateAsync({ tempToken: twoFactorTempToken, token: twoFactorCode.trim() });
+      toast.success("Welcome back");
+      router.replace(searchParams.get("next") || "/dashboard");
+    } catch (error) {
+      if (error instanceof ApiError) setTwoFactorError(error.message);
+    }
+  }
+
+  if (twoFactorTempToken) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-1.5">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Two-factor verification</h1>
+          <p className="text-sm text-muted-foreground">
+            Enter the 6-digit code from your authenticator app, or a backup code.
+          </p>
+        </div>
+
+        <form onSubmit={onSubmitTwoFactor} className="space-y-4" noValidate>
+          <FormField label="Verification code" htmlFor="twoFactorCode" error={twoFactorError ?? undefined} required>
+            <Input
+              id="twoFactorCode"
+              inputMode="text"
+              autoComplete="one-time-code"
+              placeholder="123456"
+              autoFocus
+              value={twoFactorCode}
+              onChange={(e) => setTwoFactorCode(e.target.value)}
+            />
+          </FormField>
+
+          <Button type="submit" className="w-full" disabled={completeTwoFactor.isPending || !twoFactorCode.trim()}>
+            {completeTwoFactor.isPending ? "Verifying…" : "Verify"}
+          </Button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setTwoFactorTempToken(null);
+              setTwoFactorCode("");
+              setTwoFactorError(null);
+            }}
+            className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+          >
+            Back to sign in
+          </button>
+        </form>
+      </div>
+    );
   }
 
   async function handleResend() {

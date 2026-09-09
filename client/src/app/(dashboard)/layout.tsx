@@ -8,10 +8,12 @@ import { Sidebar } from "@/components/common/sidebar";
 import { Header } from "@/components/common/header";
 import { MobileNav } from "@/components/common/mobile-nav";
 import { Loading } from "@/components/common/loading";
+import { useNotificationSocket } from "@/hooks/use-notifications";
 
 function DashboardGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isLoading, isError } = useAuth();
+  useNotificationSocket(Boolean(user));
 
   useEffect(() => {
     if (!isLoading && (isError || !user)) {

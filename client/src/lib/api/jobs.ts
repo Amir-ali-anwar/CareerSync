@@ -20,6 +20,10 @@ export const jobsApi = {
 
   getJob: (id: string) => apiClient.get<{ job: Job }>(`/jobs/${id}`).then((r) => r.data.job),
 
+  // Talent: single job, open (or already-applied-to) only - see MISSING_BACKEND_FEATURES.md #6
+  getJobForTalent: (id: string) =>
+    apiClient.get<{ job: Job }>(`/jobs/talent/${id}`).then((r) => r.data.job),
+
   updateJob: (id: string, payload: UpdateJobPayload) =>
     apiClient
       .patch<{ msg: string; job: Job }>(`/jobs/${id}`, payload)

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authApi } from "@/lib/api/auth";
 import { QUERY_KEYS } from "@/constants";
 import type {
+  CompleteTwoFactorLoginPayload,
   DeleteAccountPayload,
   ForgotPasswordPayload,
   LoginPayload,
@@ -30,6 +31,18 @@ export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: LoginPayload) => authApi.login(payload),
+    onSuccess: async (data) => {
+      if ("tokenUser" in data) {
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.currentUser });
+      }
+    },
+  });
+}
+
+export function useCompleteTwoFactorLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CompleteTwoFactorLoginPayload) => authApi.completeTwoFactorLogin(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.currentUser });
     },

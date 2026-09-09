@@ -24,7 +24,7 @@ This only applies inside `(dashboard)/*` (wrapped by `PageHeaderProvider`). Stan
 
 ## Metrics
 
-Never build a new "one big card per number" stat grid. Use `MetricStrip` + `MetricItem` (`components/dashboard/stat-card.tsx`) — a single bordered strip with icon+label+value items divided by hairlines, values in `font-mono tabular-nums`. Add a new `accent` variant there rather than hand-styling a one-off metric card.
+Use `MetricStrip` + `MetricItem` (`components/dashboard/stat-card.tsx`) for any row of top-level counts. As of the dashboard visual redesign, `MetricItem` renders as its own elevated card (`shadow-sm`, hover lift, accent-tinted icon badge) laid out in a responsive grid by `MetricStrip` — this replaced the earlier single-hairline-divided-strip pattern because it read as too flat for a landing view. Values stay `font-mono tabular-nums`. Add a new `accent` variant there rather than hand-styling a one-off metric card, and don't invent a third metric-grid style elsewhere — this is still the one pattern for "row of top-line numbers."
 
 ## Buttons
 

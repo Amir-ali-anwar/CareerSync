@@ -6,6 +6,8 @@ import { BadRequestError, NotFoundError, ForbiddenError } from "../errors/index.
 import { checkPermissions } from "../middlewares/permissions.js";
 import { cvExists, streamCv } from "../utils/cvStorage.js";
 import { calculateMatchesForCandidates } from "../services/matching/matchingService.js";
+import { buildMatchExplanation } from "../services/matching/explanationService.js";
+import { createNotification } from "../services/notifications/notificationService.js";
 const VALID_STATUSES = ['pending', 'under review', 'shortlisted', 'interview', 'rejected'];
 const ALLOWED_WITHDRAW_STATUSES = ['pending', 'under review'];
 
@@ -96,6 +98,64 @@ export const getJobApplications = async (req, res) => {
   }));
 
   res.status(StatusCodes.OK).json({ applications: applicationsWithMatch });
+};
+
+/**
+ * @swagger
+ * /api/v1/applications/{jobId}/{applicantId}/match/explanation:
+ *   get:
+ *     summary: Explain why a specific applicant does or doesn't match this job (Module G)
+ *     description: >
+ *       Employer-facing counterpart to GET /jobs/{jobId}/match/explanation - same
+ *       structured evidence, scoped to one applicant on the caller's own job. Only
+ *       reachable by the job's owning employer (checkPermissions, same ownership rule as
+ *       every other employer-side job/application route), and only for a user who has
+ *       actually applied to this job - not an arbitrary candidate id. Never exposes
+ *       resume text, embeddings, or any field beyond what the matching engine's own
+ *       MatchResult already carries.
+ *     tags: [Matching]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: applicantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Explanation generated successfully (see GET /jobs/{jobId}/match/explanation for the response shape)
+ *       401:
+ *         description: Unauthorized - not authenticated
+ *       403:
+ *         description: Forbidden - not the owner of this job
+ *       404:
+ *         description: Job not found, or this user has no application for this job
+ */
+export const getApplicantMatchExplanation = async (req, res) => {
+  const { jobId, applicantId } = req.params;
+
+  const job = await JobModal.findById(jobId).populate("createdBy");
+  if (!job || !job.createdBy) {
+    throw new NotFoundError("Job not found");
+  }
+  checkPermissions(req.user, job.createdBy._id);
+
+  const application = await JobApplicationModal.findOne({ job: jobId, talent: applicantId });
+  if (!application) {
+    throw new NotFoundError("Job application not found");
+  }
+
+  const jobProfile = await JobProfileModal.findOne({ job: jobId });
+  const matchesByTalentId = await calculateMatchesForCandidates([applicantId], job, jobProfile);
+  const explanation = buildMatchExplanation(matchesByTalentId[String(applicantId)]);
+
+  res.status(StatusCodes.OK).json({ explanation });
 };
 
 /**
@@ -195,6 +255,16 @@ export const updateApplicationStatus = async (req, res) => {
 
   application.status = status;
   await application.save();
+
+  await createNotification({
+    user: application.talent,
+    type: "application_status_changed",
+    title: "Application status updated",
+    message: `Your application for ${job.title} is now "${status}"`,
+    link: `/jobs/${jobId}`,
+    metadata: { jobId, applicationId: application._id, status },
+  });
+
   res
     .status(StatusCodes.OK)
     .json({ message: "Application status updated successfully", status });

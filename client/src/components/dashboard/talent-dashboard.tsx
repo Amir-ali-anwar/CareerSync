@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Briefcase, ClipboardList, Sparkles } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, Briefcase, ClipboardList, Search, Sparkles } from "lucide-react";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetricItem, MetricStrip } from "@/components/dashboard/stat-card";
+import { HeroBanner } from "@/components/dashboard/hero-banner";
 import { EmptyState } from "@/components/common/empty-state";
 import { ErrorState } from "@/components/common/error-state";
 import { ApplicationStatusBadge } from "@/components/common/status-badge";
@@ -51,6 +52,41 @@ export function TalentDashboard() {
 
   return (
     <div className="space-y-6">
+      {averageScore !== null ? (
+        <HeroBanner
+          eyebrow="AI Career Insight"
+          icon={Sparkles}
+          title="Your applications are matching well"
+          description="Here's how your recent applications are scoring against role requirements."
+          stat={{ label: "Avg. match score", value: `${averageScore}%` }}
+          action={
+            <Button
+              size="sm"
+              className="shrink-0 border-transparent bg-white text-primary hover:bg-white/90"
+              render={<Link href="/matches" />}
+            >
+              Explore Matches
+            </Button>
+          }
+        />
+      ) : (
+        <HeroBanner
+          eyebrow="Career Insight"
+          icon={Search}
+          title="Find your next opportunity"
+          description="Browse open roles curated to your profile and get an instant AI match score."
+          action={
+            <Button
+              size="sm"
+              className="shrink-0 border-transparent bg-white text-primary hover:bg-white/90"
+              render={<Link href="/jobs" />}
+            >
+              Browse Jobs
+            </Button>
+          }
+        />
+      )}
+
       {applicationsQuery.isError ? (
         <ErrorState error={applicationsQuery.error} onRetry={() => applicationsQuery.refetch()} />
       ) : (
@@ -75,30 +111,20 @@ export function TalentDashboard() {
         </MetricStrip>
       )}
 
-      {averageScore !== null && (
-        <div className="flex flex-col items-start justify-between gap-4 rounded-xl border border-primary/20 bg-primary-light p-5 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-light text-primary">
-              <Sparkles className="size-4.5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Career Insight</p>
-              <p className="text-sm text-muted-foreground">
-                Your recent applications average a{" "}
-                <span className="font-mono font-semibold text-foreground">{averageScore}%</span> AI match score.
-              </p>
-            </div>
-          </div>
-          <Button size="sm" variant="outline" className="shrink-0 bg-background" render={<Link href="/matches" />}>
-            Explore Matches
-          </Button>
-        </div>
-      )}
-
       <div className="grid gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+        <Card className="rounded-2xl shadow-sm transition-shadow hover:shadow-md lg:col-span-3">
           <CardHeader>
             <CardTitle>Recent Applications</CardTitle>
+            {recentApplications.length > 0 && (
+              <CardAction>
+                <Link
+                  href="/applications"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View all <ArrowRight className="size-3.5" />
+                </Link>
+              </CardAction>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {applicationsQuery.isLoading ? (
@@ -121,10 +147,12 @@ export function TalentDashboard() {
             ) : (
               recentApplications.map((application) => {
                 const job = typeof application.job === "string" ? null : (application.job as Job);
+                const jobId = typeof application.job === "string" ? application.job : application.job._id;
                 return (
-                  <div
+                  <Link
                     key={application._id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+                    href={`/jobs/${jobId}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 transition-all hover:border-primary/30 hover:bg-muted/40 hover:shadow-sm"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">
@@ -135,16 +163,26 @@ export function TalentDashboard() {
                       </p>
                     </div>
                     <ApplicationStatusBadge status={application.status} />
-                  </div>
+                  </Link>
                 );
               })
             )}
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="rounded-2xl shadow-sm transition-shadow hover:shadow-md lg:col-span-2">
           <CardHeader>
             <CardTitle>Recent Match Scores</CardTitle>
+            {recentJobIds.length > 0 && (
+              <CardAction>
+                <Link
+                  href="/matches"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View all <ArrowRight className="size-3.5" />
+                </Link>
+              </CardAction>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {recentJobIds.length === 0 ? (
@@ -157,7 +195,11 @@ export function TalentDashboard() {
                 const application = recentApplications[index];
                 const job = typeof application.job === "string" ? null : (application.job as Job);
                 return (
-                  <div key={jobId} className="flex items-center gap-3 rounded-lg border border-border p-3">
+                  <Link
+                    key={jobId}
+                    href={`/jobs/${jobId}`}
+                    className="flex items-center gap-3 rounded-lg border border-border p-3 transition-all hover:border-primary/30 hover:bg-muted/40 hover:shadow-sm"
+                  >
                     {matchQuery?.isLoading ? (
                       <Skeleton className="size-12 shrink-0 rounded-full" />
                     ) : matchQuery?.data ? (
@@ -166,12 +208,10 @@ export function TalentDashboard() {
                       <div className="size-12 shrink-0 rounded-full bg-secondary" />
                     )}
                     <div className="min-w-0">
-                      <Link href={`/jobs/${jobId}`} className="truncate text-sm font-medium text-foreground hover:underline">
-                        {job?.title || "View job"}
-                      </Link>
+                      <p className="truncate text-sm font-medium text-foreground">{job?.title || "View job"}</p>
                       <p className="truncate text-xs text-muted-foreground">{job?.company}</p>
                     </div>
-                  </div>
+                  </Link>
                 );
               })
             )}

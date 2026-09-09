@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Briefcase, Building2, ClipboardList, Users } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ArrowRight, Briefcase, Building2, ClipboardList, Users } from "lucide-react";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MetricItem, MetricStrip } from "@/components/dashboard/stat-card";
+import { HeroBanner } from "@/components/dashboard/hero-banner";
 import { EmptyState } from "@/components/common/empty-state";
 import { ErrorState } from "@/components/common/error-state";
 import { ApplicationStatusBadge } from "@/components/common/status-badge";
@@ -27,6 +28,8 @@ function greeting() {
   return "Good evening";
 }
 
+const CHART_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
+
 export function EmployerDashboard() {
   const { user } = useAuth();
   usePageHeader(`${greeting()}, ${user?.name ?? ""}`, "Here's how your hiring pipeline is doing.");
@@ -45,10 +48,27 @@ export function EmployerDashboard() {
 
   return (
     <div className="space-y-6">
+      <HeroBanner
+        eyebrow="Hiring Pipeline"
+        icon={Briefcase}
+        title="Your hiring pipeline at a glance"
+        description="Track open roles and see how candidates are moving through your funnel."
+        stat={{ label: "Open jobs", value: jobsQuery.isLoading ? "…" : openJobsCount }}
+        action={
+          <Button
+            size="sm"
+            className="shrink-0 border-transparent bg-white text-primary hover:bg-white/90"
+            render={<Link href="/jobs/new" />}
+          >
+            Post a Job
+          </Button>
+        }
+      />
+
       {jobsQuery.isError || talentsQuery.isError ? (
         <ErrorState onRetry={() => { jobsQuery.refetch(); talentsQuery.refetch(); }} />
       ) : (
-        <MetricStrip>
+        <MetricStrip className="lg:grid-cols-4">
           <MetricItem label="Total Jobs" value={jobsQuery.data?.totalJobs ?? (jobsQuery.isLoading ? "…" : 0)} icon={Briefcase} />
           <MetricItem label="Open Jobs" value={jobsQuery.isLoading ? "…" : openJobsCount} icon={Briefcase} accent="success" />
           <MetricItem
@@ -67,9 +87,19 @@ export function EmployerDashboard() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+        <Card className="rounded-2xl shadow-sm transition-shadow hover:shadow-md lg:col-span-3">
           <CardHeader>
             <CardTitle>Recent Applicants</CardTitle>
+            {applications.length > 0 && (
+              <CardAction>
+                <Link
+                  href="/applications"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View all <ArrowRight className="size-3.5" />
+                </Link>
+              </CardAction>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {talentsQuery.isLoading ? (
@@ -92,10 +122,12 @@ export function EmployerDashboard() {
             ) : (
               applications.slice(0, 5).map((application) => {
                 const talent = typeof application.talent === "string" ? null : (application.talent as ApplicationTalent);
+                const talentId = typeof application.talent === "string" ? application.talent : application.talent._id;
                 return (
-                  <div
+                  <Link
                     key={application._id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+                    href={`/talents/${talentId}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 transition-all hover:border-primary/30 hover:bg-muted/40 hover:shadow-sm"
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
                       <Avatar className="size-8 shrink-0">
@@ -111,14 +143,14 @@ export function EmployerDashboard() {
                       </div>
                     </div>
                     <ApplicationStatusBadge status={application.status} />
-                  </div>
+                  </Link>
                 );
               })
             )}
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="rounded-2xl shadow-sm transition-shadow hover:shadow-md lg:col-span-2">
           <CardHeader>
             <CardTitle>Applications by Status</CardTitle>
           </CardHeader>
@@ -137,6 +169,7 @@ export function EmployerDashboard() {
                     tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
                   />
                   <Tooltip
+                    cursor={{ fill: "var(--muted)", opacity: 0.4 }}
                     contentStyle={{
                       background: "var(--popover)",
                       border: "1px solid var(--border)",
@@ -144,7 +177,11 @@ export function EmployerDashboard() {
                       fontSize: 12,
                     }}
                   />
-                  <Bar dataKey="count" fill="var(--primary)" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                    {statusChartData.map((entry, index) => (
+                      <Cell key={entry.status} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}

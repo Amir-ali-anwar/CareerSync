@@ -83,13 +83,16 @@ const calculateMatch = (candidateProfile, job, jobProfile, { algorithmVersion = 
 const deriveProfileStatus = (profileDoc) => (profileDoc ? profileDoc.processingStatus : "not_found");
 
 /**
- * DB-aware wrapper around calculateMatch, used by controllers. Returns null only when
- * the job itself doesn't exist (the caller should 404) - a missing/incomplete
+ * DB-aware core, fetches once and returns both the computed match AND the raw profile
+ * documents - added for Module H (skillGapService.js), which needs fields
+ * (CandidateProfile.certifications/JobProfile.certifications) that MatchResult itself
+ * doesn't carry, without re-querying what this function already fetched. Returns null
+ * only when the job itself doesn't exist (the caller should 404) - a missing/incomplete
  * CandidateProfile or JobProfile is NOT an error condition here, it's reflected via
  * candidateProfileStatus/jobProfileStatus alongside a score computed from whatever
  * evidence IS available (see calculateMatch's per-matcher null-handling).
  */
-const calculateMatchForCandidateAndJob = async (userId, jobId, options) => {
+const getMatchWithProfiles = async (userId, jobId, options) => {
   const [job, candidateProfile, jobProfile] = await Promise.all([
     JobModel.findById(jobId),
     CandidateProfileModel.findOne({ user: userId }).select("+embedding"),
@@ -99,13 +102,25 @@ const calculateMatchForCandidateAndJob = async (userId, jobId, options) => {
   if (!job) return null;
 
   const result = calculateMatch(candidateProfile, job, jobProfile, options);
-  return {
+  const match = {
     ...result,
     candidateProfileVersion: candidateProfile?.profileVersion ?? null,
     jobProfileVersion: jobProfile?.profileVersion ?? null,
     candidateProfileStatus: deriveProfileStatus(candidateProfile),
     jobProfileStatus: deriveProfileStatus(jobProfile),
   };
+
+  return { match, job, candidateProfile, jobProfile };
+};
+
+/**
+ * DB-aware wrapper around calculateMatch, used by controllers that only need the score
+ * (not the raw profile documents) - see getMatchWithProfiles above for the shared fetch
+ * this builds on.
+ */
+const calculateMatchForCandidateAndJob = async (userId, jobId, options) => {
+  const result = await getMatchWithProfiles(userId, jobId, options);
+  return result ? result.match : null;
 };
 
 /**
@@ -188,4 +203,5 @@ export {
   calculateMatchForCandidateAndJob,
   calculateMatchesForCandidates,
   calculateMatchesForCandidate,
+  getMatchWithProfiles,
 };

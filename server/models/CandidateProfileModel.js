@@ -18,9 +18,6 @@ import { AI_PROCESSING_STATUS } from "../utils/constants.js";
 // addition (e.g. a separate CandidateProfileHistory collection), not implied by
 // `profileVersion` being a plain counter here.
 //
-// Deliberately lean otherwise (see AI Career Intelligence Roadmap in TASKS.md):
-// embedding storage is intentionally NOT included here yet - that's a separate, later
-// phase, once there's an actual embedding pipeline to populate it.
 const CandidateProfileSchema = new mongoose.Schema(
   {
     user: {

@@ -3,6 +3,8 @@
 **Date:** 2026-09-02
 **Scope:** `server/` — every controller, route, model, middleware, util, error class, config file, and test file was read directly. No code was modified during this audit.
 
+> **⚠️ SUPERSEDED IN PART (2026-09-08):** Substantial work has landed since this audit was written — candidate profiles, real AI matching + embeddings + semantic search, 2FA, OAuth, sessions, notifications, and hardening of every item in the P0 list below. Verified as fixed since this document was written: refresh tokens are now hashed at rest (not plaintext), CVs are served through an authenticated/ownership-checked route (not `express.static`), `User.password` now has `select: false`, a global rate limiter plus route-specific limiters now exist well beyond the 3 auth endpoints described here, verification/reset tokens use `crypto.timingSafeEqual`, the Dockerfile is a real multi-stage build (no longer empty), `Job`/`Organization`/`JobApplication` now have the indexes this doc calls out as missing, and a real AI matching pipeline (7-factor scoring including genuine cosine-similarity semantic matching over OpenAI embeddings, with graceful degradation when no API key is configured) now exists and is covered by passing tests. Treat every claim below about these specific items as historical, not current. `getOrganizationAnalytics` was removed as dead code rather than implemented — that gap remains open, as does the lack of CI/CD. See `MISSING_BACKEND_FEATURES.md` for the current, maintained list of open gaps.
+
 ---
 
 ## 1. Architecture Summary

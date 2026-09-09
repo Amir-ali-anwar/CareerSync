@@ -10,9 +10,9 @@ import {
 import { twoFactorLimiter } from "../middlewares/rateLimiter.js";
 import authenticateUser from "../middlewares/auth.js";
 
-router.route("/2fa/setup").post(authenticateUser, setupTwoFactor);
+router.route("/2fa/setup").post(authenticateUser, twoFactorLimiter, setupTwoFactor);
 router.route("/2fa/verify-setup").post(authenticateUser, twoFactorLimiter, verifyTwoFactorSetup);
-router.route("/2fa/disable").post(authenticateUser, disableTwoFactor);
+router.route("/2fa/disable").post(authenticateUser, twoFactorLimiter, disableTwoFactor);
 router.route("/2fa/login").post(twoFactorLimiter, completeTwoFactorLogin);
 
 export default router;

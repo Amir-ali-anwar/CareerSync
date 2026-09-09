@@ -13,6 +13,55 @@ CareerSync is a job portal API that connects **Talents** (job seekers) with **Em
 - Talent semantic search: `GET /api/v1/jobs/search/semantic?q=...`, with active/deadline checks, filters, pagination, and threshold controls.
 - Run `npm run backfill:embeddings` manually to index existing completed profiles. MongoDB remains authoritative; the vector index is derived data.
 
+## Module G - Explainable "Why You Match"
+
+- `services/matching/explanationService.js` is a pure, synchronous transform of Module E's
+  own `MatchResult` (matched/missing skills, experience/seniority/domain/preference
+  comparisons, component scores) into a structured explanation - no LLM call, no
+  re-running matchers or embeddings, no new database queries or persistence.
+- `services/matching/matchLevel.js` centralizes the 0-100 -> match-level classification
+  (`poor_match` / `weak_match` / `moderate_match` / `strong_match` / `excellent_match`)
+  used by the explanation.
+- `GET /api/v1/jobs/:jobId/match/explanation` — the authenticated talent's own explanation
+  (IDOR-safe, same identity rule as `GET /jobs/:jobId/match`).
+- `GET /api/v1/applications/:jobId/:applicantId/match/explanation` — the owning employer's
+  explanation for one of their job's actual applicants (`checkPermissions` + an existing
+  `JobApplication` required; not any arbitrary candidate id).
+- Output includes matched/missing skills (required -> high importance, preferred ->
+  medium), partial matches (near-misses only - e.g. experience within 80% of the
+  requirement, adjacent seniority level), evidence-backed strengths and improvement areas
+  (capped, not a full skill-gap analysis), a per-dimension score breakdown, a match-level
+  classification, and a deterministic (non-LLM) human-readable summary.
+- Never exposes resume text, embeddings, or any field the underlying `MatchResult` doesn't
+  already carry - see `MODULE_G_REPORT.md` for the full design writeup and test coverage.
+
+## Module H - Skill Gap Analysis & Career Improvement Engine
+
+- `services/career/skillGapService.js` sits directly on top of the same `MatchResult`
+  Module G reads (imports `buildMissingSkills` from `explanationService.js` and
+  `classifyMatchLevel` from `matchLevel.js` rather than reimplementing either) - pure,
+  synchronous, no LLM call, no re-running matchers/embeddings, no new database queries
+  beyond the one profile fetch `matchingService.getMatchWithProfiles` already made
+  (a small additive refactor of the existing `calculateMatchForCandidateAndJob` that
+  changed no existing exported behavior).
+- Gap categories: `required_skill`, `preferred_skill`, `experience`, `seniority`,
+  `domain`, and `certification` (the one comparison Module E/G don't compute at all -
+  `CandidateProfile.certifications` vs `JobProfile.certifications`, a plain set-difference
+  since both are flat name lists). Education gap analysis was evaluated and deliberately
+  **not** implemented - see `MODULE_H_REPORT.md`'s Limitations for why.
+- Deterministic `severity` (critical/high/medium/low) and `priority` (high/medium/low)
+  per gap, and a `prioritizedRoadmap` ranked by priority tier first, then by the matching
+  algorithm's own dimension weight (`algorithmVersions.js`) - documented explicitly in
+  `services/career/skillGapService.js`, not an arbitrary ordering.
+- `GET /api/v1/jobs/:jobId/skill-gap` - the authenticated talent's own analysis only
+  (IDOR-safe, same identity rule as `/jobs/:jobId/match`). Deliberately **candidate-only**:
+  unlike Module G, there is no employer-facing counterpart - a personal improvement
+  roadmap is not something an employer needs to evaluate a candidate (see
+  `MODULE_H_REPORT.md`'s Security section for the full reasoning).
+- No score simulation ("if you learned X, your score would become Y") - `impact` is a
+  qualitative label derived from the same dimension-weight/severity evidence as
+  `priority`, deliberately not a predicted score delta.
+
 ---
 
 ## 🔐 Authentication Module
@@ -404,10 +453,11 @@ it internally.
 ## 🎯 Hybrid Job Matching Engine — Deterministic, No AI Calls
 
 `services/matching/` computes a 0–100 match score between a candidate and a job from
-structured data only - **no LLM, no embeddings, no external API call anywhere in this
-module**. Seven independent matchers (required skills, preferred skills, experience,
-seniority, domain, location/work-mode preference, and a semantic stub reserved for a
-future phase) each score their own dimension; a weighted aggregator combines them,
+structured data only - **no LLM, no external API call anywhere in this module itself**
+(the semantic dimension reads an already-computed embedding similarity from Module F; it
+does not call an AI provider directly). Seven independent matchers (required skills,
+preferred skills, experience, seniority, domain, location/work-mode preference, and
+semantic similarity) each score their own dimension; a weighted aggregator combines them,
 excluding (not penalizing) any dimension with no data to judge. Every result is stamped
 with `matchingAlgorithmVersion`, `candidateProfileVersion`, and `jobProfileVersion` so a
 score is always traceable to the exact profiles and algorithm that produced it.
@@ -417,30 +467,47 @@ score is always traceable to the exact profiles and algorithm that produced it.
   no IDOR surface by construction.
 - `GET /api/v1/applications/job/:jobId` (existing employer endpoint) now annotates each
   applicant with their `match` object.
+- `GET /api/v1/jobs/:jobId/match/explanation` and
+  `GET /api/v1/applications/:jobId/:applicantId/match/explanation` (Module G) turn this
+  same evidence into a structured "why you match" explanation - see the Module G section
+  above.
 - Computed on demand, not persisted — see `TASKS.md` for the reasoning. A missing or
   still-processing `CandidateProfile`/`JobProfile` never errors; it's reported via
   `candidateProfileStatus`/`jobProfileStatus` alongside a best-effort score.
 
 ## 🔮 Roadmap — Planned, NOT Yet Implemented
 
-The following are intentionally **not** built yet. They are listed here so the docs
-never imply more than the codebase actually does:
+The following are intentionally **not** built yet (as of Module H). They are listed here
+so the docs never imply more than the codebase actually does:
 
-- **Semantic search / embeddings-based matching** — `services/matching/matchers/semanticMatcher.js` is a prepared stub, not an implementation
-- **Skill-gap analysis / recommendations**
-- **"Why you match" LLM explanations** (the matching engine already produces the structured evidence this would read from)
-- **Vector search** — no vector database or index is provisioned anywhere
-- **Notifications, messaging, organization analytics**
+- **Education gap analysis** — evaluated in Module H and deliberately deferred:
+  `CandidateProfile.education` is structured (`{degree, field, institution}`) while
+  `JobProfile.education` is free-text AI-extracted strings, with no existing degree-
+  ranking/equivalency model anywhere in Module E to compare them against. See
+  `MODULE_H_REPORT.md`'s Limitations.
+- **Aggregated/cross-job skill-gap analysis** ("which skills are most in-demand across
+  every job I might be a fit for") — Module H is scoped to one candidate vs. one job;
+  the spec for this feature explicitly deferred the aggregate case to a future module.
+- **Score simulation** ("if you learned X, your score would become Y") — Module H's
+  `impact` field is a qualitative label (high/medium/low) derived from the same
+  dimension-weight/severity evidence as `priority`, not a simulated post-fix score.
+- **Course/learning-platform recommendations** (Udemy, Coursera, YouTube, etc.) — Module
+  H's `recommendedAction` is a generic, evidence-based action type (e.g.
+  `skill_development`), never an external content recommendation.
+- **LLM-generated natural-language explanations** — Module G's summary and Module H's
+  roadmap message are both deterministic and template-based, not LLM-written; wiring an
+  LLM to *reword* (never recalculate) the existing structured output remains a possible,
+  optional future enhancement.
+- **Personalized job recommendations, resume optimization, career analytics**
+- **Organization analytics** — `getOrganizationAnalytics` was removed as dead code
+  (see `MISSING_BACKEND_FEATURES.md`); no replacement has been built
+- **Notification preferences / digests** — in-app real-time notifications exist
+  (`models/NotificationModel.js`, Socket.io), but there is no per-user preference control
+  or email digest yet
 
-`models/JobsModel.js`, `models/JobProfileModel.js`, and `models/CandidateProfileModel.js`
-now carry the structured fields this future matching work will read from, and
-`services/ai/` provides the (currently fake-backed) provider abstraction it will call -
-but no matching/search/recommendation logic exists yet. Do not treat either as evidence
-that AI matching/search exists today.
-
-Also not implemented: real-time messaging, a notification system beyond transactional
-verification email, an analytics dashboard, and monetization/subscriptions. All of these
-are tracked as future phases, not current functionality.
+Semantic search, embeddings-based matching, and vector similarity are implemented (see
+Module F above) - do not treat this roadmap as suggesting otherwise. Real-time messaging
+and monetization/subscriptions remain fully unbuilt.
 
 ---
 

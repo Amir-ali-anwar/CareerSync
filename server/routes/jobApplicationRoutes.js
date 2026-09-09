@@ -1,6 +1,6 @@
 import express from "express";
 const router = express.Router();
-import { getJobApplications,updateApplicationStatus,withdrawApplication,getMyApplications,getApplicationCV } from "../controllers/jobApplicationController.js";
+import { getJobApplications,updateApplicationStatus,withdrawApplication,getMyApplications,getApplicationCV,getApplicantMatchExplanation } from "../controllers/jobApplicationController.js";
 import { authorizePermissions } from "../middlewares/permissions.js";
 
 
@@ -12,6 +12,10 @@ router
 router
   .route("/job/:jobId")
   .get(authorizePermissions("employer"), getJobApplications);
+
+router
+  .route("/:jobId/:applicantId/match/explanation")
+  .get(authorizePermissions("employer"), getApplicantMatchExplanation);
 
 router
   .route("/:jobId/:applicantId/status")

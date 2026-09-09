@@ -42,9 +42,30 @@ const generateBackupCodes = () =>
  *               properties:
  *                 qrCodeDataUrl: { type: string, description: data:image/png;base64,... QR code }
  *                 secret: { type: string, description: Manual-entry fallback for the secret }
+ *     requestBody:
+ *       description: Required only when 2FA is already enabled, to re-authenticate before replacing the active secret.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password: { type: string }
  */
 const setupTwoFactor = async (req, res) => {
-  const user = await User.findById(req.user.userId);
+  const user = await User.findById(req.user.userId).select("+password");
+
+  // Re-enrolling over an already-active secret is equivalent to a security downgrade
+  // (a hijacked session could otherwise plant a new TOTP secret the real owner never
+  // sees) - require the same password re-entry as disableTwoFactor before allowing it.
+  if (user.twoFactorEnabled) {
+    const { password } = req.body;
+    if (!password) {
+      throw new BadRequestError("Please provide your password to confirm");
+    }
+    if (!(await user.comparePassword(password))) {
+      throw new UnAuthenticatedError("Invalid Credentials");
+    }
+  }
 
   const secret = authenticator.generateSecret();
   const uri = authenticator.keyuri(user.email, TOTP_ISSUER, secret);

@@ -15,7 +15,7 @@ import { MobilePageHeader, usePageHeader } from "@/providers/page-header-provide
 import { formatDate, formatSalary, titleCase } from "@/lib/utils";
 
 export function TalentJobDetail({ jobId }: { jobId: string }) {
-  const { data: job } = useTalentJobDetail(jobId);
+  const { data: job, isLoading } = useTalentJobDetail(jobId);
   const applicationsQuery = useMyApplications();
   usePageHeader(job ? job.title || job.position : "Job", job?.company);
 
@@ -23,12 +23,16 @@ export function TalentJobDetail({ jobId }: { jobId: string }) {
     (app) => (typeof app.job === "string" ? app.job : app.job._id) === jobId
   );
 
+  if (isLoading) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">Loading job…</p>;
+  }
+
   if (!job) {
     return (
       <EmptyState
         icon={Briefcase}
-        title="Open this job from search"
-        description="Job details are only available when opened from the Jobs search page in this session."
+        title="Job not found"
+        description="This job may have closed, been removed, or the link may be incorrect."
         action={
           <Link href="/jobs" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
             <ArrowLeft className="size-4" /> Back to jobs

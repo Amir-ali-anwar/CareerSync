@@ -30,19 +30,17 @@ export function useJob(id: string | undefined) {
 }
 
 /**
- * GET /jobs/:id is employer-only - talents have no direct fetch-by-id endpoint (see
- * MISSING_BACKEND_FEATURES.md). Talent job detail pages instead read whatever full Job
- * object was already seeded into this same query key from a search/semantic-search
- * result list (see useSeedJobCache below). If nothing was seeded (e.g. a direct link or
- * refresh with no prior search in this session), data stays undefined and the page shows
- * an explicit "open from search" empty state instead of guessing or hitting a 403.
+ * GET /jobs/talent/:id (see MISSING_BACKEND_FEATURES.md #6) returns the job if it's open,
+ * or one the talent already applied to. Shares its query key with useSeedJobCache below,
+ * so a job opened from a search result renders instantly from cache with no extra
+ * request, while a cold cache (direct link, bookmark, refresh) falls back to this fetch
+ * instead of showing an empty state.
  */
 export function useTalentJobDetail(id: string | undefined) {
   return useQuery<Job>({
     queryKey: QUERY_KEYS.job(id || ""),
-    queryFn: (): Promise<Job> => Promise.reject(new Error("not directly fetchable by talent")),
-    enabled: false,
-    retry: false,
+    queryFn: () => jobsApi.getJobForTalent(id as string),
+    enabled: Boolean(id),
   });
 }
 

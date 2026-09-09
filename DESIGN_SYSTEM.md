@@ -31,7 +31,7 @@ Reflects what's actually implemented in `client/src/app/globals.css` and the sha
 | `--primary-light` | `color-mix(in oklab, var(--primary) 10%, var(--background))` | auto-adapts | Active nav background, icon chips, subtle accent panels — computed, not a second hardcoded hex, so it stays correct in both themes automatically |
 | `--success` / `--warning` / `--error` | `#10b981` / `#f59e0b` / `#ef4444` | same | Status only — never decorative |
 
-Cards and the page background are the same white in light mode by design (`--card === --background`) — separation comes from the card's `ring-1 ring-foreground/10` border, not a fill-color difference, per "cards should rely on background contrast, borders, spacing" read together with "avoid excessive shadows."
+Cards and the page background are the same white in light mode by design (`--card === --background`) — separation comes from the card's `ring-1 ring-foreground/10` border, not a fill-color difference, per "cards should rely on background contrast, borders, spacing" read together with "avoid excessive shadows." Dashboard landing views are the exception (see Shadows and the hero banner below) — they trade some of that flatness for visual presence since they're the first thing a user sees per session.
 
 ## Spacing
 
@@ -43,7 +43,17 @@ Tailwind's default scale used directly (4/8/12/16/20/24/32px steps via `p-1`…`
 
 ## Shadows
 
-Deliberately almost none. Reserved for surfaces that float above content: dropdown menus, selects, popovers, tooltips (`shadow-md`/`shadow-lg`). Static cards, table wrappers, and kanban cards never use a shadow — border + background contrast only.
+Mostly none, by default. Reserved for surfaces that float above content: dropdown menus, selects, popovers, tooltips (`shadow-md`/`shadow-lg`). Static cards, table wrappers, and kanban cards never use a shadow — border + background contrast only.
+
+**Dashboard exception**: the talent/employer dashboard landing views (`components/dashboard/*`) use `shadow-sm` on cards (`hover:shadow-md` + `hover:-translate-y-0.5` on `MetricItem`) for a bit of tactile depth, since these are showcase views rather than dense data views. Don't spread this to tables, kanban, forms, or list pages — those stay flat.
+
+## Gradients & the hero banner
+
+One deliberate gradient surface exists: `components/dashboard/hero-banner.tsx`, used once at the top of each dashboard landing view. `bg-gradient-to-br from-primary via-primary to-accent-violet` — the same two accent tokens already in the palette, not a new color. Decorative blurred circles (`bg-white/10 blur-3xl`) add depth without extra tokens. This is the only gradient surface in the app; don't add a second one on the same page (one hero per view), and don't use a gradient as a card background elsewhere — it's a landing-moment device, not a general card treatment.
+
+## Charts
+
+Recharts bars/segments may use the full `--chart-1` … `--chart-5` sequence for categorical series (e.g. applications-by-status) instead of a single flat color — this was always the tokens' purpose, now actually used. Still never a hardcoded hex in the component; reference the CSS custom properties.
 
 ## Buttons
 

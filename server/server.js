@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import app from "./app.js";
 import connectDB from "./db/connect.js";
 import logger from "./utils/logger.js";
+import { initSocket } from "./services/realtime/socket.js";
 
 const REQUIRED_ENV_VARS = ["JWT_SECRET", "JWT_REFRESH_SECRET"];
 const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
@@ -70,6 +71,7 @@ const start = async () => {
     const httpServer = app.listen(PORT, () => {
       console.log(`server listening on the ${PORT}`);
     });
+    initSocket(httpServer);
     registerGracefulShutdown(httpServer);
   } catch (error) {
     console.log(error);

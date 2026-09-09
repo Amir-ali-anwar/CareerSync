@@ -37,6 +37,24 @@ describe("Two-factor authentication", () => {
       const res = await agent.post("/api/v1/auth/2fa/verify-setup").send({ token: "000000" });
       expect(res.statusCode).toBe(400);
     });
+
+    it("requires the current password to re-enroll once 2FA is already enabled", async () => {
+      const payload = talentPayload();
+      const { agent } = await registerVerifiedAgent(payload);
+      await enableTwoFactor(agent);
+
+      const noPassword = await agent.post("/api/v1/auth/2fa/setup");
+      expect(noPassword.statusCode).toBe(400);
+
+      const wrongPassword = await agent.post("/api/v1/auth/2fa/setup").send({ password: "wrong" });
+      expect(wrongPassword.statusCode).toBe(401);
+
+      const correctPassword = await agent
+        .post("/api/v1/auth/2fa/setup")
+        .send({ password: payload.password });
+      expect(correctPassword.statusCode).toBe(200);
+      expect(correctPassword.body.secret).toBeTruthy();
+    });
   });
 
   describe("Login gate", () => {

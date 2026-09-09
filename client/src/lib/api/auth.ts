@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type {
+  CompleteTwoFactorLoginPayload,
   DeleteAccountPayload,
   ForgotPasswordPayload,
   LoginPayload,
@@ -12,12 +13,17 @@ import type {
 } from "@/types/auth";
 import type { CurrentUser, TokenUser } from "@/types/user";
 
+export type LoginResult = { tokenUser: TokenUser } | { requiresTwoFactor: true; tempToken: string };
+
 export const authApi = {
   register: (payload: RegisterPayload) =>
     apiClient.post<{ msg: string }>("/auth/register", payload).then((r) => r.data),
 
   login: (payload: LoginPayload) =>
-    apiClient.post<{ tokenUser: TokenUser }>("/auth/login", payload).then((r) => r.data),
+    apiClient.post<LoginResult>("/auth/login", payload).then((r) => r.data),
+
+  completeTwoFactorLogin: (payload: CompleteTwoFactorLoginPayload) =>
+    apiClient.post<{ tokenUser: TokenUser }>("/auth/2fa/login", payload).then((r) => r.data),
 
   logout: () => apiClient.get<{ msg: string }>("/auth/logout").then((r) => r.data),
 

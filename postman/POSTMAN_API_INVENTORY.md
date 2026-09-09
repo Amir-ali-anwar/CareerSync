@@ -71,7 +71,10 @@ Base URL (dev): `http://localhost:4000` (`server/.env.example`, `server/config/s
 | PATCH | `/:jobId/close` | employer (owner) | |
 | GET | `/search` | talent | Plain regex keyword search over open, non-expired jobs. |
 | GET | `/search/semantic` | talent | Embedding-based cosine-similarity search; `q` 2–500 chars, `threshold` 0–1. |
+| GET | `/talent/:id` | talent | Returns the job if it's open (or the talent already applied to it); 404 otherwise. Added so a talent opening a job-detail page via direct link/refresh/bookmark isn't stuck with only whatever `/search` happened to seed into cache. |
 | GET | `/:jobId/match` | talent | Match is always computed against the CALLER's own CandidateProfile — no candidate id accepted, so there is no IDOR vector here by design. |
+| GET | `/:jobId/match/explanation` | talent | Module G — structured "why you match" breakdown of the same evidence `/:jobId/match` computes (matched/missing skills, partial matches, strengths, improvements, score breakdown, match level, deterministic summary). No LLM call, no new evidence. Same IDOR-safe identity rule as `/:jobId/match`. |
+| GET | `/:jobId/skill-gap` | talent | Module H — deterministic skill-gap analysis and prioritized career-improvement roadmap, built on the same evidence as `/:jobId/match/explanation` plus a certification gap (the one comparison not already computed by Module E/G). Candidate-private by design — no employer-facing counterpart (see `MODULE_H_REPORT.md`). |
 | POST | `/applyForJob/:id` | talent | **Multipart file upload** (`cv` field, PDF/DOC/DOCX, 5MB max). 20/hour limit. Fire-and-forget triggers async resume processing. ⚠️ **Doc mismatch**: the controller's Swagger comment documents `POST /jobs/{id}/apply`; the live route is `POST /jobs/applyForJob/:id`. |
 
 ## Job Applications (`/api/v1/applications`) — blanket `authenticateUser` in `app.js`
@@ -80,6 +83,7 @@ Base URL (dev): `http://localhost:4000` (`server/.env.example`, `server/config/s
 |---|---|---|---|
 | GET | `/my` | talent | ⚠️ **Doc mismatch**: Swagger comment documents `/applications/my-applications`; live route is `/applications/my`. |
 | GET | `/job/:jobId` | employer (owner) | Each application annotated with a `match` object (batched, no N+1). |
+| GET | `/:jobId/:applicantId/match/explanation` | employer (owner) | Module G, employer-facing counterpart to `/jobs/:jobId/match/explanation` — one applicant on the caller's own job. 404 (not just 403) when `applicantId` has no real application for this job, so it can't be used to probe arbitrary candidates. |
 | PATCH | `/:jobId/:applicantId/status` | employer (owner) | Status must be one of `pending/under review/shortlisted/interview/rejected`. |
 | PATCH | `/:id/withdraw` | talent (owner) | Only while status is still `pending`/`under review`. |
 | GET | `/:id/cv` | **no role guard — ownership checked inside the controller** | Accessible to the applicant OR the owning employer only; everyone else gets 403. This is the one endpoint in the whole API where `authorizePermissions` is deliberately NOT used, in favor of an in-controller check. |

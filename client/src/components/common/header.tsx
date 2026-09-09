@@ -5,6 +5,7 @@ import { ChevronDown, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { Logo } from "@/components/common/logo";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { NotificationBell } from "@/components/common/notification-bell";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -52,6 +53,7 @@ export function Header() {
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        <NotificationBell />
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger

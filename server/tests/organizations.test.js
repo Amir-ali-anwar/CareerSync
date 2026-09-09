@@ -295,7 +295,7 @@ describe("Organization Profiles", () => {
         `/api/v1/organization/public-organizations/${org._id}/followers/count`
       );
       expect(res.statusCode).toBe(200);
-      expect(res.body.organization.followers).toHaveLength(1);
+      expect(res.body.followerCount).toBe(1);
     });
 
     it("returns 404 for the follower count of a nonexistent organization", async () => {

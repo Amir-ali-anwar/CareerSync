@@ -7,12 +7,70 @@ moving into the AI Career Intelligence phase. The original audit remains in
 `AUDIT_REPORT.md`; the original priority-ordered fix list (with full problem/fix detail
 for every item below) is preserved at the bottom of this file for reference.
 
-**Test baseline: 319/319 passing** (29 files). This number must not go down as new
-phases are added — see each phase's own test requirement.
+**Test baseline: 438/438 passing** (42 files, as of Module G). This number must not go
+down as new phases are added — see each phase's own test requirement. (Historical:
+319/319 at the end of Module E, before Module F/G's own test additions - see those
+sections below for their individual counts.)
 
 ---
 
 ## COMPLETED
+
+### Module H - Skill Gap Analysis & Career Improvement Engine
+- `services/career/skillGapService.js`: pure, synchronous, built directly on Module E's
+  `MatchResult` and reusing Module G's own `buildMissingSkills`/`classifyMatchLevel`
+  rather than a second skill-comparison or normalization system. No LLM call, no
+  re-running matchers/embeddings.
+- `matchingService.js` gained one additive export, `getMatchWithProfiles` (the existing
+  `calculateMatchForCandidateAndJob` now delegates to it) - a small refactor so Module H
+  can reuse the one profile fetch instead of re-querying MongoDB; no existing exported
+  function's signature or behavior changed.
+- New endpoint: `GET /api/v1/jobs/:jobId/skill-gap` (talent, own profile only - same
+  IDOR-safe identity rule as `/match` and `/match/explanation`). Deliberately
+  **no employer-facing counterpart** - a candidate's personal improvement roadmap is kept
+  candidate-private by design (documented decision, see `MODULE_H_REPORT.md`).
+- Gap categories: required/preferred skill, experience, seniority, domain, and a new
+  certification gap (`CandidateProfile.certifications` vs `JobProfile.certifications` -
+  the one comparison Module E/G don't already compute, added because both sides are flat
+  name lists, i.e. a plain set-difference, not a new fuzzy-equivalency system). Education
+  was evaluated and explicitly **not** implemented - no structured/ranked comparator
+  exists for it (see the report's Limitations).
+- Deterministic severity/priority rules and a `prioritizedRoadmap` ordered by priority
+  tier, then by the matching algorithm's own dimension weight - documented in-code, not
+  arbitrary.
+- No score simulation, no course/learning-platform recommendations - `recommendedAction`
+  is a generic, evidence-based action type only.
+- Generated on demand, no new persistence model - same "computed on demand" decision as
+  `MatchResult`/Module G's explanation, for the same staleness reasons.
+- 46 new tests (36 unit in `tests/career/skillGapService.test.js`, 10 integration/
+  authorization/IDOR in `tests/skillGapApi.test.js`). See `MODULE_H_REPORT.md` for the
+  full design writeup and exact before/after test counts.
+
+### Module G - Explainable "Why You Match"
+- `services/matching/explanationService.js`: a pure, synchronous transform of Module E's
+  own `MatchResult` into structured explanation evidence - no LLM call, no re-running
+  matchers/embeddings, no new database access. The matching engine still calculates every
+  score; this module only explains a score that already exists.
+- `services/matching/matchLevel.js`: centralized 0-100 match-level classification
+  (poor/weak/moderate/strong/excellent), boundary-tested at every tier edge (39/40,
+  59/60, 74/75, 89/90).
+- New endpoints: `GET /api/v1/jobs/:jobId/match/explanation` (talent, own profile only -
+  same IDOR-safe identity rule as the existing `/match` endpoint) and
+  `GET /api/v1/applications/:jobId/:applicantId/match/explanation` (owning employer only,
+  and only for a user who actually applied to that job).
+- Output: matched/missing skills (via the existing `utils/normalization.js` - no second
+  normalization system), partial matches (near-misses only, e.g. experience within 80% of
+  the requirement or an adjacent seniority level - never a fabricated fuzzy read of a
+  binary result), evidence-backed strengths/improvements (capped at 8 improvements -
+  deliberately not a full skill-gap analysis), a per-dimension score breakdown, and a
+  deterministic (template-based, non-LLM) human-readable summary.
+- Algorithm-version aware: never fabricates semantic-similarity evidence under `v1`
+  (semantic weight 0) even when a semantic score happens to be computable.
+- Generated on demand from data already in hand - no `MatchExplanation` model, no caching
+  layer, matching the "computed on demand" decision already made for `MatchResult` itself
+  (see Module E note below) and avoiding staleness when a profile or job changes.
+- See `MODULE_G_REPORT.md` for the full design writeup, evidence-to-score mapping, and
+  test inventory.
 
 ### Module F - Embeddings and Semantic Search
 - Provider-backed embeddings reuse the existing AI service and deterministic fake provider.

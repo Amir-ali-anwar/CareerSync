@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "PowerShell(Get-Process | Where-Object { $_.ProcessName -match 'node' } | Select-Object Id, ProcessName, Path | Format-Table -AutoSize)",
+      "Bash(mkdir -p \"e:/my-learning/CareerSync/client/src/app/\\(dashboard\\)/matches\" \"e:/my-learning/CareerSync/client/src/app/\\(dashboard\\)/applications\" \"e:/my-learning/CareerSync/client/src/app/\\(dashboard\\)/talents/[id]\" \"e:/my-learning/CareerSync/client/src/components/matches\" \"e:/my-learning/CareerSync/client/src/components/applications\"; echo done)"
+    ],
+    "additionalDirectories": [
+      "e:\\my-learning\\CareerSync\\client\\src\\app\\(dashboard)\\talents"
+    ]
+  }
+}

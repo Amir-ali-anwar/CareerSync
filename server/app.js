@@ -19,6 +19,7 @@ import GetJobApplication from './routes/jobApplicationRoutes.js'
 import talentRoutes from './routes/talentRoutes.js'
 import organizationRoutes from './routes/OrganizationRoutes.js'
 import candidateProfileRoutes from './routes/candidateProfileRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
 import { swaggerUi, specs } from './config/swagger.js';
 import { globalLimiter } from './middlewares/rateLimiter.js';
 import requestId from './middlewares/requestId.js';
@@ -103,6 +104,7 @@ app.use("/api/v1/applications", authenticateUser, GetJobApplication);
 app.use("/api/v1/talents", authenticateUser, talentRoutes);
 app.use("/api/v1/organization", organizationRoutes);
 app.use("/api/v1/candidate-profile", authenticateUser, candidateProfileRoutes);
+app.use("/api/v1/notifications", authenticateUser, notificationRoutes);
 
 // middlewares
 app.use(notFoundMiddleware);
