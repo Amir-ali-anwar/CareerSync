@@ -83,8 +83,24 @@ app.use(globalLimiter);
 // GET /api/v1/applications/:id/cv route instead (see controllers/jobApplicationController.js).
 
 // CORS configuration
+const allowedOrigins = new Set(
+  [
+    'http://localhost:3000',
+    'http://192.168.0.102:3000',
+    ...(process.env.CLIENT_URL || '').split(','),
+  ]
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Origin not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

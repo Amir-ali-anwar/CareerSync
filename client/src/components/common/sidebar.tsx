@@ -35,10 +35,10 @@ export function Sidebar() {
 
   function navLinkClasses(isActive: boolean) {
     return cn(
-      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+      "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
       isActive
-        ? "bg-primary-light text-primary"
-        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+        ? "bg-sidebar-accent text-sidebar-foreground before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-sidebar-primary"
+        : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground",
       sidebarCollapsed && "justify-center px-0"
     );
   }
@@ -70,7 +70,7 @@ export function Sidebar() {
         {navGroups.map((group) => (
           <div key={group.label} className="flex flex-col gap-1">
             {!sidebarCollapsed && (
-              <p className="px-3 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground/80 uppercase">
+              <p className="px-3 pb-1 text-[10px] font-semibold tracking-[0.16em] text-sidebar-foreground/45 uppercase">
                 {group.label}
               </p>
             )}
@@ -94,7 +94,7 @@ export function Sidebar() {
 
       <div className="border-t border-sidebar-border p-3">
         {!sidebarCollapsed && (
-          <p className="px-3 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground/80 uppercase">
+          <p className="px-3 pb-1 text-[10px] font-semibold tracking-[0.16em] text-sidebar-foreground/45 uppercase">
             Account
           </p>
         )}

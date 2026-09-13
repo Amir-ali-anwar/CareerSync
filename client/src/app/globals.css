@@ -7,44 +7,44 @@
 :root {
   --radius: 0.625rem;
 
-  --background: #ffffff;
-  --foreground: #18181b;
+  --background: #f7f8f7;
+  --foreground: #172321;
 
   /* Secondary/recessed panel tone - sidebar, kanban columns, subtle section backgrounds.
      Distinct from --card (also white) so a card still visually separates when placed
      on a --surface area, even though card and page background are the same white. */
-  --surface: #fafafa;
+  --surface: #eef3f1;
 
   --card: #ffffff;
-  --card-foreground: #18181b;
+  --card-foreground: #172321;
 
   --popover: #ffffff;
   --popover-foreground: #18181b;
 
-  --primary: #6366f1;
+  --primary: #0f766e;
   --primary-foreground: #ffffff;
-  --primary-hover: #4f46e5;
+  --primary-hover: #0b5f59;
   /* Auto-adapts per theme since it re-resolves --background at use-time. */
   --primary-light: color-mix(in oklab, var(--primary) 10%, var(--background));
 
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
+  --secondary: #e8efed;
+  --secondary-foreground: #172321;
 
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
+  --muted: #e8efed;
+  --muted-foreground: #647572;
 
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  --accent-violet: #8b5cf6;
+  --accent: #e8efed;
+  --accent-foreground: #172321;
+  --accent-violet: #0f766e;
 
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
   --destructive: #ef4444;
 
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #6366f1;
+  --border: #d6e1de;
+  --input: #cbd9d5;
+  --ring: #0f766e;
 
   --chart-1: #6366f1;
   --chart-2: #8b5cf6;
@@ -52,50 +52,50 @@
   --chart-4: #f59e0b;
   --chart-5: #71717a;
 
-  --sidebar: #fafafa;
-  --sidebar-foreground: #18181b;
-  --sidebar-primary: #6366f1;
+  --sidebar: #102522;
+  --sidebar-foreground: #f2f7f5;
+  --sidebar-primary: #5eead4;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f4f5;
-  --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #6366f1;
+  --sidebar-accent: #1b3934;
+  --sidebar-accent-foreground: #f2f7f5;
+  --sidebar-border: #25413c;
+  --sidebar-ring: #5eead4;
 }
 
 .dark {
-  --background: #09090b;
+  --background: #0b1413;
   --foreground: #fafafa;
 
-  --surface: #18181b;
+  --surface: #13221f;
 
-  --card: #18181b;
+  --card: #13221f;
   --card-foreground: #fafafa;
 
   --popover: #18181b;
   --popover-foreground: #fafafa;
 
-  --primary: #6366f1;
+  --primary: #2dd4bf;
   --primary-foreground: #ffffff;
-  --primary-hover: #4f46e5;
+  --primary-hover: #5eead4;
 
-  --secondary: #27272a;
+  --secondary: #1b2d29;
   --secondary-foreground: #fafafa;
 
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
+  --muted: #1b2d29;
+  --muted-foreground: #9eb2ad;
 
-  --accent: #27272a;
+  --accent: #1b2d29;
   --accent-foreground: #fafafa;
-  --accent-violet: #8b5cf6;
+  --accent-violet: #2dd4bf;
 
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
   --destructive: #ef4444;
 
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #6366f1;
+  --border: #29423d;
+  --input: #29423d;
+  --ring: #2dd4bf;
 
   --chart-1: #818cf8;
   --chart-2: #a78bfa;
@@ -103,14 +103,14 @@
   --chart-4: #f59e0b;
   --chart-5: #a1a1aa;
 
-  --sidebar: #18181b;
+  --sidebar: #08110f;
   --sidebar-foreground: #fafafa;
-  --sidebar-primary: #6366f1;
+  --sidebar-primary: #5eead4;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #27272a;
+  --sidebar-accent: #132a25;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #27272a;
-  --sidebar-ring: #6366f1;
+  --sidebar-border: #1f3a34;
+  --sidebar-ring: #5eead4;
 }
 
 @theme inline {
@@ -174,6 +174,18 @@
        <html> (body's parent) referencing var(--font-geist-sans) can never resolve
        it and silently falls back to the browser default font. */
     @apply bg-background text-foreground font-sans;
+    background-image: linear-gradient(135deg, color-mix(in oklab, var(--primary) 3%, transparent), transparent 34%);
+  }
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
