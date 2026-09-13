@@ -44,6 +44,14 @@ export function useTalentJobDetail(id: string | undefined) {
   });
 }
 
+export function useSkillGap(jobId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: QUERY_KEYS.jobSkillGap(jobId || ""),
+    queryFn: () => jobsApi.getSkillGap(jobId as string),
+    enabled: Boolean(jobId) && enabled,
+  });
+}
+
 export function useSeedJobCache(jobs: Job[] | undefined) {
   const queryClient = useQueryClient();
   useEffect(() => {

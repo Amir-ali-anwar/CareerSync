@@ -20,6 +20,8 @@ import talentRoutes from './routes/talentRoutes.js'
 import organizationRoutes from './routes/OrganizationRoutes.js'
 import candidateProfileRoutes from './routes/candidateProfileRoutes.js'
 import notificationRoutes from './routes/notificationRoutes.js'
+import copilotRoutes from './routes/copilotRoutes.js'
+import agentRoutes from './routes/agentRoutes.js'
 import { swaggerUi, specs } from './config/swagger.js';
 import { globalLimiter } from './middlewares/rateLimiter.js';
 import requestId from './middlewares/requestId.js';
@@ -105,6 +107,8 @@ app.use("/api/v1/talents", authenticateUser, talentRoutes);
 app.use("/api/v1/organization", organizationRoutes);
 app.use("/api/v1/candidate-profile", authenticateUser, candidateProfileRoutes);
 app.use("/api/v1/notifications", authenticateUser, notificationRoutes);
+app.use("/api/v1/copilot", authenticateUser, copilotRoutes);
+app.use("/api/v1/agent", authenticateUser, agentRoutes);
 
 // middlewares
 app.use(notFoundMiddleware);

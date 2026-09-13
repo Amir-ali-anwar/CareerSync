@@ -162,14 +162,23 @@ export const uploadResume = async (req, res) => {
  *         description: Forbidden - caller is not a talent
  */
 export const getMyMatches = async (req, res) => {
-  const page = Math.max(Number(req.query.page) || 1, 1);
-  const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
-  const minScore = Number(req.query.minScore) || 0;
-  if (minScore < 0 || minScore > 100) {
-    throw new BadRequestError("minScore must be between 0 and 100");
+  const rawPage = req.query.page;
+  const rawLimit = req.query.limit;
+  const rawMinScore = req.query.minScore;
+  const page = rawPage === undefined ? 1 : Number(rawPage);
+  const limit = rawLimit === undefined ? 10 : Number(rawLimit);
+  const minScore = rawMinScore === undefined ? 0 : Number(rawMinScore);
+  if (!Number.isInteger(page) || page < 1) {
+    throw new BadRequestError("page must be a positive integer");
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+    throw new BadRequestError("limit must be an integer between 1 and 50");
+  }
+  if (!Number.isFinite(minScore) || minScore < 0 || minScore > 100) {
+    throw new BadRequestError("minScore must be a number between 0 and 100");
   }
 
-  const { items, total, numOfPages, currentPage, candidateProfileStatus } =
+  const { items, total, numOfPages, currentPage, candidateProfileStatus, usedSemanticRetrieval } =
     await calculateMatchesForCandidate(req.user.userId, { page, limit, minScore });
 
   res.status(StatusCodes.OK).json({
@@ -177,6 +186,7 @@ export const getMyMatches = async (req, res) => {
     numOfPages,
     currentPage,
     candidateProfileStatus,
+    usedSemanticRetrieval,
     matches: items,
   });
 };

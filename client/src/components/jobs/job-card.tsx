@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Briefcase, MapPin } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InteractiveListCard } from "@/components/common/interactive-list-card";
 import { SkillBadgeList } from "@/components/common/skill-badge-list";
 import { formatRelativeDate, formatSalary, titleCase } from "@/lib/utils";
 import type { Job } from "@/types/job";
@@ -12,7 +13,7 @@ export function JobCard({ job }: { job: Job }) {
 
   return (
     <Link href={`/jobs/${job._id}`}>
-      <Card size="sm" className="transition-colors hover:border-primary/40 hover:bg-surface">
+      <InteractiveListCard>
         <CardContent className="space-y-2.5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -37,7 +38,7 @@ export function JobCard({ job }: { job: Job }) {
 
           {skills.length > 0 && <SkillBadgeList skills={skills} limit={5} />}
         </CardContent>
-      </Card>
+      </InteractiveListCard>
     </Link>
   );
 }

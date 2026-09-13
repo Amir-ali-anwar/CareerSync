@@ -142,6 +142,28 @@ const openAiProvider = {
     });
     return { suggestions: response.choices[0].message.content.trim(), usage: response.usage || null };
   },
+
+  // Module J's Career Agent narrative - paraphrases an ALREADY-COMPUTED, already-
+  // validated context (job counts/scores/titles, skill-gap names, readiness score) into
+  // 2-4 encouraging sentences. Never asked to invent a job, score, or skill not present
+  // in `context` - the same evidence-only rule as explainMatch above.
+  async generateCareerNarrative(context) {
+    const response = await client().chat.completions.create({
+      model: CHAT_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You write a short (2-4 sentence) career summary for a job seeker, given a JSON " +
+            "context of already-computed facts (matched jobs, scores, skill gaps, application " +
+            "counts, profile readiness). Use ONLY the facts in the JSON - never invent a job, " +
+            "company, skill, or score not present in it. Be specific and encouraging.",
+        },
+        { role: "user", content: JSON.stringify(context) },
+      ],
+    });
+    return { narrative: response.choices[0].message.content.trim(), usage: response.usage || null };
+  },
 };
 
 export default openAiProvider;

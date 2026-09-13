@@ -29,6 +29,14 @@ export function useJobMatch(jobId: string | undefined, enabled = true) {
   });
 }
 
+export function useJobMatchExplanation(jobId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: QUERY_KEYS.jobMatchExplanation(jobId || ""),
+    queryFn: () => matchesApi.getJobMatchExplanation(jobId as string),
+    enabled: Boolean(jobId) && enabled,
+  });
+}
+
 /** Lazily fetches match scores for a capped set of job ids (used by /matches and dashboards) - never fans out across an entire result set at once. */
 export function useJobMatches(jobIds: string[]) {
   return useQueries({

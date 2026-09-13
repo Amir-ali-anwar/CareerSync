@@ -57,6 +57,8 @@ export const QUERY_KEYS = {
   talentJobSearch: (query?: unknown) => ["jobs", "search", query] as const,
   semanticJobSearch: (query?: unknown) => ["jobs", "semantic-search", query] as const,
   jobMatch: (jobId: string) => ["match", jobId] as const,
+  jobMatchExplanation: (jobId: string) => ["match", jobId, "explanation"] as const,
+  jobSkillGap: (jobId: string) => ["match", jobId, "skill-gap"] as const,
   myApplications: ["applications", "mine"] as const,
   jobApplications: (jobId: string) => ["applications", "job", jobId] as const,
   talents: (page?: number) => ["talents", page] as const,
@@ -70,4 +72,6 @@ export const QUERY_KEYS = {
   myCandidateProfile: ["candidateProfile", "mine"] as const,
   myMatches: (query?: unknown) => ["candidateProfile", "matches", query] as const,
   notifications: ["notifications"] as const,
+  careerInsights: ["copilot", "insights"] as const,
+  agentWorkflows: ["agent", "workflows"] as const,
 };

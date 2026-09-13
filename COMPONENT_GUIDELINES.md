@@ -24,7 +24,11 @@ This only applies inside `(dashboard)/*` (wrapped by `PageHeaderProvider`). Stan
 
 ## Metrics
 
-Use `MetricStrip` + `MetricItem` (`components/dashboard/stat-card.tsx`) for any row of top-level counts. As of the dashboard visual redesign, `MetricItem` renders as its own elevated card (`shadow-sm`, hover lift, accent-tinted icon badge) laid out in a responsive grid by `MetricStrip` — this replaced the earlier single-hairline-divided-strip pattern because it read as too flat for a landing view. Values stay `font-mono tabular-nums`. Add a new `accent` variant there rather than hand-styling a one-off metric card, and don't invent a third metric-grid style elsewhere — this is still the one pattern for "row of top-line numbers."
+Use `MetricStrip` + `MetricItem` (`components/dashboard/stat-card.tsx`) for any row of top-level counts. The strip is a compact, divided rail: values stay `font-mono tabular-nums`, icon accents remain semantic, and the items do not lift, glow, or cast shadows. Add a new `accent` variant there rather than hand-styling a one-off metric card.
+
+## Interactive result rows
+
+Use `InteractiveListCard` (`components/common/interactive-list-card.tsx`) for linked job and match results. It centralizes dense card spacing and hover treatment; do not reimplement those classes in each result component.
 
 ## Buttons
 

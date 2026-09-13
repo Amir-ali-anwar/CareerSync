@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Briefcase, ClipboardList, Search, Sparkles } from "lucide-react";
+import { ArrowRight, Briefcase, ClipboardList, Search, Sparkles, WandSparkles } from "lucide-react";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,7 @@ import { useSearchJobs, useSeedJobCache } from "@/hooks/use-jobs";
 import { useJobMatches } from "@/hooks/use-matches";
 import { formatRelativeDate } from "@/lib/utils";
 import type { Job } from "@/types/job";
+import { useCareerInsights } from "@/hooks/use-copilot";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -40,6 +41,7 @@ export function TalentDashboard() {
     .slice(0, 3)
     .map((app) => (typeof app.job === "string" ? app.job : app.job._id));
   const matchQueries = useJobMatches(recentJobIds);
+  const insightsQuery = useCareerInsights();
 
   const populatedJobs = (applicationsQuery.data?.applications || [])
     .map((app) => app.job)
@@ -109,6 +111,52 @@ export function TalentDashboard() {
             accent="success"
           />
         </MetricStrip>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <WandSparkles className="size-4 text-primary" /> AI Career Agent
+          </CardTitle>
+          <CardAction>
+            <Link href="/copilot" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              Ask Career Agent <ArrowRight className="size-3.5" />
+            </Link>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            What should you focus on today? Give the agent a goal and it runs a multi-step workflow across your
+            matches, skill gaps, and applications to build a prioritized action plan - based on your CareerSync data.
+          </p>
+        </CardContent>
+      </Card>
+
+      {insightsQuery.data && insightsQuery.data.recommendations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <WandSparkles className="size-4 text-primary" /> Career actions
+            </CardTitle>
+            <CardAction>
+              <Link href="/copilot" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                Open Copilot <ArrowRight className="size-3.5" />
+              </Link>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            {insightsQuery.data.recommendations.slice(0, 3).map((recommendation) => (
+              <Link
+                key={`${recommendation.type}-${recommendation.text}`}
+                href={recommendation.jobId ? `/jobs/${recommendation.jobId}` : recommendation.applicationId ? "/applications" : "/copilot"}
+                className="rounded-lg border border-border p-3 transition-colors hover:bg-surface"
+              >
+                <p className="text-sm font-medium">{recommendation.text}</p>
+                <p className="mt-1 text-xs text-muted-foreground">View guidance</p>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-4 lg:grid-cols-5">

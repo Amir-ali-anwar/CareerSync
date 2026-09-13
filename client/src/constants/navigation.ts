@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, Building2, LayoutDashboard, Settings, Sparkles, UserCircle, Users } from "lucide-react";
+import { Briefcase, Building2, LayoutDashboard, Settings, Sparkles, UserCircle, Users, WandSparkles } from "lucide-react";
 import type { UserRole } from "@/types/user";
 
 export interface NavItem {
@@ -26,6 +26,7 @@ export const TALENT_NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Jobs", href: "/jobs", icon: Briefcase },
       { label: "Matches", href: "/matches", icon: Sparkles },
+      { label: "Career Copilot", href: "/copilot", icon: WandSparkles },
       { label: "Applications", href: "/applications", icon: Users },
     ],
   },

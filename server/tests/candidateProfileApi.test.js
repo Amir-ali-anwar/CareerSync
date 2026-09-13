@@ -125,6 +125,7 @@ describe("GET /api/v1/candidate-profile/matches", () => {
 
     const res = await talent.get("/api/v1/candidate-profile/matches");
     expect(res.statusCode).toBe(200);
+    expect(typeof res.body.usedSemanticRetrieval).toBe("boolean");
     expect(res.body.matches.length).toBeGreaterThanOrEqual(2);
 
     const titles = res.body.matches.map((m) => m.job.title);
@@ -158,5 +159,17 @@ describe("GET /api/v1/candidate-profile/matches", () => {
     const { agent: employer } = await createEmployerAgent();
     const res = await employer.get("/api/v1/candidate-profile/matches");
     expect(res.statusCode).toBe(403);
+  });
+
+  it.each([
+    ["page", "abc"],
+    ["page", "0"],
+    ["limit", "1.5"],
+    ["limit", "51"],
+    ["minScore", "abc"],
+  ])("rejects invalid %s query values", async (key, value) => {
+    const { agent: talent } = await createTalentAgent();
+    const res = await talent.get("/api/v1/candidate-profile/matches").query({ [key]: value });
+    expect(res.statusCode).toBe(400);
   });
 });

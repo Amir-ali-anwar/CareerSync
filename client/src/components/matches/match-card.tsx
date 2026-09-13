@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Briefcase, MapPin } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InteractiveListCard } from "@/components/common/interactive-list-card";
 import { MatchScoreRing, matchScoreLabel } from "@/components/common/match-score-ring";
 import { SkillBadgeList } from "@/components/common/skill-badge-list";
 import { titleCase } from "@/lib/utils";
@@ -16,7 +17,7 @@ interface MatchCardProps {
 export function MatchCard({ job, match, isLoading }: MatchCardProps) {
   return (
     <Link href={`/jobs/${job._id}`}>
-      <Card size="sm" className="transition-colors hover:border-primary/40 hover:bg-surface">
+      <InteractiveListCard>
         <CardContent className="flex gap-3.5">
           {isLoading ? (
             <Skeleton className="size-14 shrink-0 rounded-full" />
@@ -52,7 +53,7 @@ export function MatchCard({ job, match, isLoading }: MatchCardProps) {
             )}
           </div>
         </CardContent>
-      </Card>
+      </InteractiveListCard>
     </Link>
   );
 }

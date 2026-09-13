@@ -45,7 +45,7 @@ Tailwind's default scale used directly (4/8/12/16/20/24/32px steps via `p-1`…`
 
 Mostly none, by default. Reserved for surfaces that float above content: dropdown menus, selects, popovers, tooltips (`shadow-md`/`shadow-lg`). Static cards, table wrappers, and kanban cards never use a shadow — border + background contrast only.
 
-**Dashboard exception**: the talent/employer dashboard landing views (`components/dashboard/*`) use `shadow-sm` on cards (`hover:shadow-md` + `hover:-translate-y-0.5` on `MetricItem`) for a bit of tactile depth, since these are showcase views rather than dense data views. Don't spread this to tables, kanban, forms, or list pages — those stay flat.
+Dashboard metrics stay flat and compact: `MetricStrip` uses a one-pixel divider grid and `MetricItem` uses a restrained hover surface, with no lift, glow, or shadow. This keeps the numbers prominent without turning every metric into a separate card.
 
 ## Gradients & the hero banner
 

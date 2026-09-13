@@ -15,6 +15,7 @@ export type JobProfileStatus = "not_found" | "pending" | "processing" | "complet
  */
 export interface MatchResult {
   matchScore: number;
+  classification?: { level: string; label: string; minScore?: number; maxScore?: number };
   componentScores: Record<string, number>;
   matchedSkills: string[];
   missingRequiredSkills: string[];
@@ -25,4 +26,30 @@ export interface MatchResult {
 
 export interface JobMatchResponse {
   match: MatchResult;
+}
+
+export interface MatchExplanation {
+  matchScore: number;
+  matchLevel: { level: string; label: string };
+  matchingAlgorithmVersion: string;
+  summary: string;
+  scoreBreakdown: Array<{ dimension: string; label: string; score: number | null; weight: number; included: boolean }>;
+  matchedSkills: Array<{ skill: string; type: string }>;
+  missingSkills: Array<{ skill: string; type: string; importance: string }>;
+  partialMatches: Array<{ category: string; message: string }>;
+  strengths: Array<{ category: string; message: string }>;
+  improvements: Array<{ category: string; item: string; reason: string }>;
+}
+
+export interface SkillGapAnalysis {
+  matchScore: number;
+  matchLevel: { level: string; label: string };
+  summary: {
+    totalGaps: number;
+    criticalGaps: number;
+    highPriorityGaps: number;
+    message: string;
+  };
+  gaps: Array<{ category: string; item: string; priority: string; severity: string; reason: string }>;
+  prioritizedRoadmap: Array<{ rank: number; category: string; item: string; priority: string; impact: string }>;
 }

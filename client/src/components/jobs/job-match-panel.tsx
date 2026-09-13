@@ -8,6 +8,7 @@ import { MatchScoreRing, matchScoreLabel } from "@/components/common/match-score
 import { SkillBadgeList } from "@/components/common/skill-badge-list";
 import { useJobMatch } from "@/hooks/use-matches";
 import { titleCase } from "@/lib/utils";
+import { MatchIntelligencePanel } from "@/components/jobs/match-intelligence-panel";
 
 export function JobMatchPanel({ jobId }: { jobId: string }) {
   const { data: match, isLoading, isError } = useJobMatch(jobId);
@@ -85,6 +86,8 @@ export function JobMatchPanel({ jobId }: { jobId: string }) {
                 <SkillBadgeList skills={match.missingRequiredSkills} variant="missing" />
               </div>
             )}
+
+            <MatchIntelligencePanel jobId={jobId} />
           </div>
         )}
       </CardContent>

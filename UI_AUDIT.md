@@ -39,8 +39,8 @@ Source-verified against the actual code in `client/src/` (not assumptions). Ever
 3. Wire the header's title slot for real (or remove it and rely on in-content headings consistently — decided in the plan below) and add a desktop account menu.
 4. Group the sidebar nav into labeled sections.
 5. Realign color tokens to the new spec's exact values (background/surface swap, dark border, radius scale) and add explicit hover/light accent tokens.
-6. Replace the 3-4-huge-card dashboard stat grids with a compact horizontal metric strip.
-7. Introduce one shared compact "list row" pattern used consistently for recent applications/applicants/matches instead of each page hand-rolling its own bordered div.
+6. Replace the 3-4-huge-card dashboard stat grids with a compact horizontal metric strip. **Implemented:** `MetricStrip` now uses a quiet divided rail and smaller metric treatment.
+7. Introduce one shared compact "list row" pattern used consistently for recent applications/applicants/matches instead of each page hand-rolling its own bordered div. **Implemented for job and match results:** `InteractiveListCard` is now the shared result surface; dashboard/application rows remain intentionally plain because they are nested list items.
 
 ## Two conflicts between the new design brief and the real backend (resolved in favor of the backend — see the plan)
 

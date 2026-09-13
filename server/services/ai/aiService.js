@@ -172,6 +172,30 @@ class AIService {
 
     return { missingSkills, suggestions, usage };
   }
+
+  /**
+   * Module J - the ONE LLM call the agentic career engine makes. `context` must already
+   * be the fully deterministic, already-computed AgentContextBuilder output (counts,
+   * scores, titles) - never raw resume text, embeddings, or unvalidated data. Same rule
+   * as explainMatch: the LLM narrates evidence that was computed elsewhere, it never
+   * becomes the source of that evidence. Callers (agentNarrativeService.js) must still
+   * fall back to a deterministic template on any error from this call - it is a
+   * best-effort prose layer over an already-complete structured result, never a
+   * dependency the workflow can fail on.
+   */
+  generateCareerNarrative(context, options) {
+    return this.#call(
+      "generateCareerNarrative",
+      async () => {
+        const result = await this.provider.generateCareerNarrative(context);
+        if (!result || typeof result.narrative !== "string" || !result.narrative.trim()) {
+          throw new MalformedAIResponseError("generateCareerNarrative", "narrative is not a non-empty string");
+        }
+        return result;
+      },
+      options
+    );
+  }
 }
 
 export { AIService, AITimeoutError, MalformedAIResponseError };

@@ -10,6 +10,8 @@ import { MATCHING_ALGORITHM_VERSION, getAlgorithmWeights } from "./algorithmVers
 import CandidateProfileModel from "../../models/CandidateProfileModel.js";
 import JobProfileModel from "../../models/JobProfileModel.js";
 import JobModel from "../../models/JobsModel.js";
+import { vectorStore } from "../embeddings/embeddingService.js";
+import { classifyMatchLevel } from "./matchLevel.js";
 
 /**
  * Pure, deterministic core: candidateProfile + job (+ optional jobProfile) -> a
@@ -152,6 +154,32 @@ const calculateMatchesForCandidates = async (userIds, job, jobProfile, options) 
 // every open job in the system is the one truly unbounded-by-time query this endpoint
 // could otherwise run.
 const MAX_MATCHING_CANDIDATE_JOBS = 500;
+const RECOMMENDATION_RETRIEVAL_LIMIT = 50;
+
+const isOpenJob = (job) =>
+  job &&
+  !job.isClosed &&
+  (!job.applicationDeadline || new Date(job.applicationDeadline).getTime() > Date.now());
+
+const rankRecommendation = (left, right) =>
+  right.matchScore - left.matchScore ||
+  (right.componentScores.semantic ?? -1) - (left.componentScores.semantic ?? -1) ||
+  (right.componentScores.requiredSkills ?? 0) - (left.componentScores.requiredSkills ?? 0) ||
+  String(left.job._id).localeCompare(String(right.job._id));
+
+const buildRecommendationItem = (job, candidateProfile, jobProfile) => {
+  const result = calculateMatch(candidateProfile, job, jobProfile);
+  return {
+    job,
+    matchScore: result.matchScore,
+    classification: classifyMatchLevel(result.matchScore),
+    componentScores: result.componentScores,
+    matchedSkills: result.matchedSkills,
+    missingRequiredSkills: result.missingRequiredSkills,
+    matchingAlgorithmVersion: result.matchingAlgorithmVersion,
+    jobProfileStatus: deriveProfileStatus(jobProfile),
+  };
+};
 
 /**
  * Batched counterpart to calculateMatchForCandidateAndJob - ranks every open,
@@ -168,7 +196,29 @@ const calculateMatchesForCandidate = async (userId, { page = 1, limit = 10, minS
     isClosed: false,
     $or: [{ applicationDeadline: null }, { applicationDeadline: { $gt: new Date() } }],
   };
-  const jobs = await JobModel.find(openJobsFilter).sort("-createdAt").limit(MAX_MATCHING_CANDIDATE_JOBS);
+  let jobs;
+  let usedSemanticRetrieval = false;
+
+  if (candidateProfile?.embedding?.length) {
+    const retrieved = await vectorStore.search({
+      sourceType: "job",
+      vector: candidateProfile.embedding,
+      limit: RECOMMENDATION_RETRIEVAL_LIMIT,
+      filter: { processingStatus: "completed" },
+    });
+    const retrievedIds = retrieved.map((item) => item.sourceId);
+    if (retrievedIds.length > 0) {
+      const retrievedJobs = await JobModel.find({ ...openJobsFilter, _id: { $in: retrievedIds } });
+      const byId = new Map(retrievedJobs.map((job) => [String(job._id), job]));
+      jobs = retrievedIds.map((id) => byId.get(String(id))).filter(isOpenJob);
+      usedSemanticRetrieval = jobs.length > 0;
+    }
+  }
+
+  if (!jobs || jobs.length === 0) {
+    jobs = await JobModel.find(openJobsFilter).sort("-createdAt").limit(MAX_MATCHING_CANDIDATE_JOBS);
+    usedSemanticRetrieval = false;
+  }
   const jobIds = jobs.map((job) => job._id);
   const jobProfiles = await JobProfileModel.find({ job: { $in: jobIds } }).select("+embedding");
   const jobProfileByJobId = new Map(jobProfiles.map((profile) => [String(profile.job), profile]));
@@ -176,26 +226,17 @@ const calculateMatchesForCandidate = async (userId, { page = 1, limit = 10, minS
   const scored = jobs
     .map((job) => {
       const jobProfile = jobProfileByJobId.get(String(job._id)) || null;
-      const result = calculateMatch(candidateProfile, job, jobProfile);
-      return {
-        job,
-        matchScore: result.matchScore,
-        componentScores: result.componentScores,
-        matchedSkills: result.matchedSkills,
-        missingRequiredSkills: result.missingRequiredSkills,
-        matchingAlgorithmVersion: result.matchingAlgorithmVersion,
-        jobProfileStatus: deriveProfileStatus(jobProfile),
-      };
+      return buildRecommendationItem(job, candidateProfile, jobProfile);
     })
     .filter((match) => match.matchScore >= minScore)
-    .sort((a, b) => b.matchScore - a.matchScore);
+    .sort(rankRecommendation);
 
   const total = scored.length;
   const numOfPages = Math.max(Math.ceil(total / limit), 1);
   const start = (page - 1) * limit;
   const items = scored.slice(start, start + limit);
 
-  return { items, total, numOfPages, currentPage: page, candidateProfileStatus };
+  return { items, total, numOfPages, currentPage: page, candidateProfileStatus, usedSemanticRetrieval };
 };
 
 export {

@@ -155,6 +155,33 @@ const fakeProvider = {
       usage: null,
     };
   },
+
+  // Module J's Career Agent narrative - a deterministic template over the exact
+  // AgentContextBuilder fields (see services/agent/agentContextBuilder.js), never
+  // inventing a job/skill/application beyond what `context` already lists.
+  async generateCareerNarrative(context) {
+    const parts = [];
+    if (context.topMatches?.length) {
+      const top = context.topMatches[0];
+      parts.push(`Your strongest match is ${top.title} at ${top.company} (${top.matchScore}%).`);
+    } else if (context.jobsFound === 0) {
+      parts.push("No open jobs currently match your profile.");
+    }
+    if (context.topSkillGaps?.length) {
+      parts.push(`Focus on: ${context.topSkillGaps.slice(0, 3).join(", ")}.`);
+    }
+    if (context.applications && context.applications.needingAttentionCount > 0) {
+      parts.push(`${context.applications.needingAttentionCount} application(s) need attention.`);
+    }
+    if (context.readinessScore !== undefined) {
+      parts.push(`Profile readiness is ${context.readinessScore}%.`);
+    }
+    if (context.interviewTarget) {
+      parts.push(`Prepare for ${context.interviewTarget.title} at ${context.interviewTarget.company}.`);
+    }
+    if (!parts.length) parts.push("Here is your grounded career summary based on your current CareerSync data.");
+    return { narrative: parts.join(" "), usage: null };
+  },
 };
 
 export default fakeProvider;

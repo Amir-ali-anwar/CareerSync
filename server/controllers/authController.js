@@ -321,12 +321,6 @@ const login = async (req, res, next) => {
     throw new UnAuthenticatedError("Invalid Credentials");
   }
 
-  if (user.lockUntil && user.lockUntil > new Date()) {
-    const minutesLeft = Math.ceil((user.lockUntil - Date.now()) / 60000);
-    throw new UnAuthenticatedError(
-      `Account locked due to too many failed attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}.`
-    );
-  }
 
   const isPasswordCorrect = await user.comparePassword(password);
   if (!isPasswordCorrect) {

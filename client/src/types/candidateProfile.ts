@@ -46,6 +46,7 @@ export interface CandidateProfileUpdatePayload {
 export interface MatchedJobSummary {
   job: import("./job").Job;
   matchScore: number;
+  classification?: { level: string; label: string };
   componentScores: Record<string, number>;
   matchedSkills: string[];
   missingRequiredSkills: string[];
@@ -59,6 +60,7 @@ export interface MyMatchesResponse {
   currentPage: number;
   candidateProfileStatus: string;
   matches: MatchedJobSummary[];
+  usedSemanticRetrieval?: boolean;
 }
 
 export interface MyMatchesQuery {

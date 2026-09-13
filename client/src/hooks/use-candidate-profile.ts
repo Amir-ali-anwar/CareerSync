@@ -24,6 +24,7 @@ export function useUpdateCandidateProfile() {
     mutationFn: (payload: CandidateProfileUpdatePayload) => candidateProfileApi.updateMyProfile(payload),
     onSuccess: (profile) => {
       queryClient.setQueryData(QUERY_KEYS.myCandidateProfile, profile);
+      queryClient.invalidateQueries({ queryKey: ["candidateProfile", "matches"] });
     },
   });
 }
@@ -34,6 +35,7 @@ export function useUploadResume() {
     mutationFn: (formData: FormData) => candidateProfileApi.uploadResume(formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.myCandidateProfile });
+      queryClient.invalidateQueries({ queryKey: ["candidateProfile", "matches"] });
     },
   });
 }

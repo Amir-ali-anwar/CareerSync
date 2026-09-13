@@ -100,7 +100,7 @@ export function TalentApplicationsView() {
                 const job = typeof application.job === "string" ? null : (application.job as Job);
                 const canWithdraw = WITHDRAWABLE_STATUSES.includes(application.status);
                 return (
-                  <TableRow key={application._id}>
+                  <TableRow key={application._id} className="transition-colors hover:bg-muted/50">
                     <TableCell className="font-medium">{job?.company || "—"}</TableCell>
                     <TableCell>
                       {job ? (

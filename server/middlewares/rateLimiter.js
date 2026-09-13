@@ -154,3 +154,15 @@ export const semanticSearchLimiter = rateLimit({
   legacyHeaders: false,
   skip: skipInTest,
 });
+
+// 🤖 Agent execution: a single request can run several matching/skill-gap calls plus
+// one billed LLM narrative call - the most expensive single endpoint in the API.
+// Throttled harder than semantic search, similar in spirit to csvExportLimiter.
+export const agentExecutionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15,
+  message: { msg: "Too many career agent requests. Try again in 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTest,
+});

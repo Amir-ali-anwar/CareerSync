@@ -9,6 +9,7 @@ import type {
   UpdateJobPayload,
 } from "@/types/job";
 import type { JobApplication } from "@/types/application";
+import type { SkillGapAnalysis } from "@/types/match";
 
 export const jobsApi = {
   // Employer
@@ -51,4 +52,7 @@ export const jobsApi = {
         { headers: { "Content-Type": "multipart/form-data" } }
       )
       .then((r) => r.data),
+
+  getSkillGap: (jobId: string) =>
+    apiClient.get<{ gapAnalysis: SkillGapAnalysis }>(`/jobs/${jobId}/skill-gap`).then((r) => r.data.gapAnalysis),
 };
